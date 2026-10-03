@@ -1,323 +1,313 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Voice Audition</title>
-  <style>
-    :root {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color-scheme: light dark;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: Canvas;
-      color: CanvasText;
-      padding: 24px;
-    }
-    .app {
-      width: min(760px, 100%);
-      border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
-      border-radius: 18px;
-      padding: 24px;
-      box-shadow: 0 10px 35px rgba(0,0,0,.12);
-      background: Canvas;
-    }
-    h1 {
-      margin: 0 0 6px;
-      font-size: 28px;
-    }
-    .sub {
-      margin: 0 0 22px;
-      opacity: .7;
-      line-height: 1.4;
-    }
-    label {
-      display: block;
-      font-weight: 600;
-      margin: 16px 0 7px;
-    }
-    textarea, select {
-      width: 100%;
-      font: inherit;
-      border-radius: 10px;
-      border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
-      background: Canvas;
-      color: CanvasText;
-    }
-    textarea {
-      min-height: 180px;
-      resize: vertical;
-      padding: 12px;
-      line-height: 1.45;
-    }
-    select {
-      padding: 10px 12px;
-    }
-    .slider-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 14px;
-      margin-top: 16px;
-    }
-    .slider-card {
-      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-      border-radius: 12px;
-      padding: 12px;
-    }
-    .slider-card label {
-      margin: 0 0 8px;
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    input[type="range"] {
-      width: 100%;
-    }
-    .buttons {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr 1fr 1fr;
-      gap: 10px;
-      margin-top: 22px;
-    }
-    button {
-      border: 0;
-      border-radius: 12px;
-      padding: 12px 14px;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    #speakBtn {
-      background: #111;
-      color: white;
-    }
-    @media (prefers-color-scheme: dark) {
-      #speakBtn {
-        background: white;
-        color: black;
-      }
-    }
-    .secondary {
-      background: color-mix(in srgb, CanvasText 10%, Canvas);
-      color: CanvasText;
-    }
-    .status {
-      margin-top: 14px;
-      min-height: 1.3em;
-      font-size: 14px;
-      opacity: .7;
-    }
-    .voice-meta {
-      margin-top: 8px;
-      font-size: 13px;
-      opacity: .65;
-    }
-    @media (max-width: 620px) {
-      .slider-grid { grid-template-columns: 1fr; }
-      .buttons { grid-template-columns: 1fr 1fr; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Voice Audition</title>
+<style>
+  :root {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color-scheme: light dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .app {
+    width: min(760px, 100%);
+    padding: 24px;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+    box-shadow: 0 12px 38px rgba(0,0,0,.12);
+  }
+  h1 { margin: 0 0 6px; font-size: 28px; }
+  .sub { margin: 0 0 20px; opacity: .72; line-height: 1.45; }
+  label { display:block; margin:16px 0 7px; font-weight:700; }
+  textarea, select {
+    width:100%;
+    font:inherit;
+    color:CanvasText;
+    background:Canvas;
+    border:1px solid color-mix(in srgb, CanvasText 22%, transparent);
+    border-radius:10px;
+  }
+  textarea {
+    min-height:170px;
+    padding:12px;
+    line-height:1.5;
+    resize:vertical;
+  }
+  select { padding:10px 12px; }
+  .row {
+    display:grid;
+    grid-template-columns: 1fr 180px;
+    gap:14px;
+    align-items:end;
+  }
+  .speed {
+    border:1px solid color-mix(in srgb, CanvasText 15%, transparent);
+    border-radius:10px;
+    padding:9px 12px;
+  }
+  .speed label {
+    margin:0 0 6px;
+    display:flex;
+    justify-content:space-between;
+  }
+  input[type="range"] { width:100%; }
+  button {
+    border:0;
+    border-radius:11px;
+    padding:12px 15px;
+    font:inherit;
+    font-weight:750;
+    cursor:pointer;
+  }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .primary { background:#111; color:#fff; }
+  @media (prefers-color-scheme: dark) {
+    .primary { background:#fff; color:#000; }
+  }
+  .secondary {
+    background:color-mix(in srgb, CanvasText 10%, Canvas);
+    color:CanvasText;
+  }
+  .buttons {
+    display:grid;
+    grid-template-columns: 1.15fr 1.15fr .8fr;
+    gap:10px;
+    margin-top:20px;
+  }
+  .progress-wrap {
+    margin-top:18px;
+    height:10px;
+    border-radius:999px;
+    overflow:hidden;
+    background:color-mix(in srgb, CanvasText 10%, Canvas);
+  }
+  .progress {
+    height:100%;
+    width:0%;
+    background:currentColor;
+    opacity:.7;
+    transition:width .12s linear;
+  }
+  .status {
+    margin-top:10px;
+    min-height:1.4em;
+    font-size:14px;
+    opacity:.72;
+  }
+  .note {
+    margin-top:16px;
+    padding:12px 14px;
+    border-radius:10px;
+    background:color-mix(in srgb, CanvasText 6%, Canvas);
+    font-size:13px;
+    line-height:1.45;
+    opacity:.82;
+  }
+  @media(max-width:620px){
+    .row { grid-template-columns:1fr; }
+    .buttons { grid-template-columns:1fr; }
+  }
+</style>
 </head>
 <body>
-  <main class="app">
-    <h1>Voice Audition</h1>
-    <p class="sub">
-      Test the text-to-speech voices available to this browser and device.
-    </p>
+<main class="app">
+  <h1>Neural Voice Audition</h1>
+  <p class="sub">
+    This uses a fixed neural text-to-speech model rather than your Mac's built-in voices.
+    The model runs in the browser after it loads.
+  </p>
 
-    <label for="text">Text to read</label>
-    <textarea id="text">Now notice that the third of the chord is already inside the scale shape. Play the phrase slowly, and listen for how it resolves.</textarea>
+  <label for="text">Narration text</label>
+  <textarea id="text">Now notice that the third of the chord is already inside the scale shape. Play these three notes slowly, and listen for how the phrase resolves.</textarea>
 
-    <label for="voice">Voice</label>
-    <select id="voice"></select>
-    <div id="voiceMeta" class="voice-meta"></div>
-
-    <div class="slider-grid">
-      <div class="slider-card">
-        <label for="rate"><span>Rate</span><span id="rateVal">1.00</span></label>
-        <input id="rate" type="range" min="0.5" max="2" value="1" step="0.05">
-      </div>
-
-      <div class="slider-card">
-        <label for="pitch"><span>Pitch</span><span id="pitchVal">1.00</span></label>
-        <input id="pitch" type="range" min="0" max="2" value="1" step="0.05">
-      </div>
-
-      <div class="slider-card">
-        <label for="volume"><span>Volume</span><span id="volumeVal">1.00</span></label>
-        <input id="volume" type="range" min="0" max="1" value="1" step="0.05">
-      </div>
+  <div class="row">
+    <div>
+      <label for="voice">Narrator</label>
+      <select id="voice">
+        <option value="af_heart">American female — Heart</option>
+        <option value="af_bella">American female — Bella</option>
+        <option value="am_michael">American male — Michael</option>
+        <option value="bm_fable">British male — Fable</option>
+      </select>
     </div>
 
-    <div class="buttons">
-      <button id="speakBtn">▶ Speak</button>
-      <button id="pauseBtn" class="secondary">Pause</button>
-      <button id="resumeBtn" class="secondary">Resume</button>
-      <button id="stopBtn" class="secondary">Stop</button>
+    <div class="speed">
+      <label for="speed"><span>Speed</span><span id="speedValue">1.00×</span></label>
+      <input id="speed" type="range" min="0.75" max="1.25" value="1" step="0.05">
     </div>
+  </div>
 
-    <div id="status" class="status">Loading voices…</div>
-  </main>
+  <div class="buttons">
+    <button id="loadBtn" class="secondary">Load Neural Voice</button>
+    <button id="generateBtn" class="primary" disabled>Generate &amp; Play</button>
+    <button id="stopBtn" class="secondary" disabled>Stop</button>
+  </div>
 
-<script>
-(() => {
-  const synth = window.speechSynthesis;
+  <div class="progress-wrap"><div id="progress" class="progress"></div></div>
+  <div id="status" class="status">Model not loaded.</div>
 
-  const textEl = document.getElementById('text');
-  const voiceEl = document.getElementById('voice');
-  const voiceMetaEl = document.getElementById('voiceMeta');
-  const statusEl = document.getElementById('status');
+  <audio id="audio" controls style="width:100%; margin-top:14px; display:none;"></audio>
 
-  const rateEl = document.getElementById('rate');
-  const pitchEl = document.getElementById('pitch');
-  const volumeEl = document.getElementById('volume');
+  <div class="note">
+    First load is substantial because the neural model is downloaded and cached by the browser.
+    Subsequent uses should be much faster. For the most reliable test, host this file with GitHub Pages rather than opening it directly as a local file.
+  </div>
+</main>
 
-  const rateVal = document.getElementById('rateVal');
-  const pitchVal = document.getElementById('pitchVal');
-  const volumeVal = document.getElementById('volumeVal');
+<script type="module">
+const MODEL = "onnx-community/Kokoro-82M-v1.0-ONNX";
+const KOKORO_URL = "https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm";
 
-  let voices = [];
+const textEl = document.getElementById("text");
+const voiceEl = document.getElementById("voice");
+const speedEl = document.getElementById("speed");
+const speedValue = document.getElementById("speedValue");
+const loadBtn = document.getElementById("loadBtn");
+const generateBtn = document.getElementById("generateBtn");
+const stopBtn = document.getElementById("stopBtn");
+const statusEl = document.getElementById("status");
+const progressEl = document.getElementById("progress");
+const audioEl = document.getElementById("audio");
 
-  function setStatus(msg) {
-    statusEl.textContent = msg;
-  }
+let KokoroTTS = null;
+let tts = null;
+let objectURL = null;
 
-  function selectedVoice() {
-    const i = Number(voiceEl.value);
-    return Number.isFinite(i) ? voices[i] : null;
-  }
+function status(message) {
+  statusEl.textContent = message;
+}
 
-  function updateVoiceMeta() {
-    const v = selectedVoice();
-    if (!v) {
-      voiceMetaEl.textContent = '';
-      return;
-    }
-    const parts = [
-      v.lang,
-      v.localService ? 'local voice' : 'network/remote voice'
-    ];
-    if (v.default) parts.push('browser default');
-    voiceMetaEl.textContent = parts.join(' • ');
-  }
+function setProgress(p) {
+  const n = Math.max(0, Math.min(100, Number(p) || 0));
+  progressEl.style.width = n + "%";
+}
 
-  function populateVoices() {
-    voices = synth.getVoices();
+speedEl.addEventListener("input", () => {
+  speedValue.textContent = Number(speedEl.value).toFixed(2) + "×";
+});
 
-    voiceEl.innerHTML = '';
+async function loadModel() {
+  if (tts) return tts;
 
-    if (!voices.length) {
-      const opt = document.createElement('option');
-      opt.textContent = 'No voices found yet';
-      opt.value = '';
-      voiceEl.appendChild(opt);
-      setStatus('Waiting for the browser to provide voices…');
-      return;
-    }
+  loadBtn.disabled = true;
+  generateBtn.disabled = true;
+  status("Loading speech engine…");
+  setProgress(2);
 
-    // Put English voices first, then all others.
-    voices.sort((a, b) => {
-      const aEng = /^en/i.test(a.lang) ? 0 : 1;
-      const bEng = /^en/i.test(b.lang) ? 0 : 1;
-      if (aEng !== bEng) return aEng - bEng;
-      return a.name.localeCompare(b.name);
+  try {
+    ({ KokoroTTS } = await import(KOKORO_URL));
+
+    status("Loading neural voice model…");
+    let bestProgress = 3;
+
+    tts = await KokoroTTS.from_pretrained(MODEL, {
+      // q8 + WASM is deliberately chosen for the first prototype:
+      // smaller download and broader browser compatibility than fp32/WebGPU.
+      dtype: "q8",
+      device: "wasm",
+      progress_callback: (p) => {
+        let pct = null;
+
+        if (typeof p?.progress === "number") {
+          // Transformers.js versions have reported progress either as 0–1 or 0–100.
+          pct = p.progress <= 1 ? p.progress * 100 : p.progress;
+        } else if (typeof p?.loaded === "number" && typeof p?.total === "number" && p.total > 0) {
+          pct = (p.loaded / p.total) * 100;
+        }
+
+        if (pct !== null && Number.isFinite(pct)) {
+          bestProgress = Math.max(bestProgress, pct);
+          setProgress(bestProgress);
+          status(`Loading neural voice model… ${Math.round(bestProgress)}%`);
+        }
+      }
     });
 
-    voices.forEach((voice, index) => {
-      const option = document.createElement('option');
-      option.value = index;
-      option.textContent =
-        `${voice.name} — ${voice.lang}` +
-        `${voice.localService ? '' : ' (remote)'}`;
-      voiceEl.appendChild(option);
+    setProgress(100);
+    status("Neural voice ready.");
+    generateBtn.disabled = false;
+    stopBtn.disabled = false;
+    loadBtn.textContent = "Voice Loaded";
+    return tts;
+
+  } catch (err) {
+    console.error(err);
+    status("Could not load the neural voice model: " + (err?.message || err));
+    setProgress(0);
+    loadBtn.disabled = false;
+    loadBtn.textContent = "Try Loading Again";
+    throw err;
+  }
+}
+
+async function generateAndPlay() {
+  const text = textEl.value.trim();
+  if (!text) {
+    status("Enter some narration text first.");
+    return;
+  }
+
+  try {
+    await loadModel();
+
+    generateBtn.disabled = true;
+    loadBtn.disabled = true;
+    status("Generating narration…");
+
+    audioEl.pause();
+
+    const result = await tts.generate(text, {
+      voice: voiceEl.value,
+      speed: Number(speedEl.value)
     });
 
-    // Prefer an English default voice if available.
-    let preferred = voices.findIndex(v => v.default && /^en/i.test(v.lang));
-    if (preferred < 0) preferred = voices.findIndex(v => /^en-US/i.test(v.lang));
-    if (preferred < 0) preferred = voices.findIndex(v => /^en/i.test(v.lang));
-    if (preferred < 0) preferred = 0;
-
-    voiceEl.value = preferred;
-    updateVoiceMeta();
-    setStatus(`${voices.length} voices available.`);
-  }
-
-  function makeUtterance() {
-    const text = textEl.value.trim();
-    if (!text) return null;
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voice = selectedVoice();
-
-    if (voice) {
-      utterance.voice = voice;
-      utterance.lang = voice.lang;
+    if (objectURL) {
+      URL.revokeObjectURL(objectURL);
+      objectURL = null;
     }
 
-    utterance.rate = Number(rateEl.value);
-    utterance.pitch = Number(pitchEl.value);
-    utterance.volume = Number(volumeEl.value);
+    const blob = result.toBlob();
+    objectURL = URL.createObjectURL(blob);
 
-    utterance.onstart = () => setStatus('Speaking…');
-    utterance.onpause = () => setStatus('Paused.');
-    utterance.onresume = () => setStatus('Speaking…');
-    utterance.onend = () => setStatus('Finished.');
-    utterance.onerror = (e) => setStatus(`Speech error: ${e.error || 'unknown error'}`);
+    audioEl.src = objectURL;
+    audioEl.style.display = "block";
 
-    return utterance;
+    status("Playing generated narration.");
+    await audioEl.play();
+
+  } catch (err) {
+    console.error(err);
+    status("Generation failed: " + (err?.message || err));
+  } finally {
+    generateBtn.disabled = !tts;
+    loadBtn.disabled = !!tts;
   }
+}
 
-  document.getElementById('speakBtn').addEventListener('click', () => {
-    // Cancel first so pressing Speak always starts cleanly from the beginning.
-    synth.cancel();
-    const utterance = makeUtterance();
-    if (!utterance) {
-      setStatus('Enter some text first.');
-      return;
-    }
+loadBtn.addEventListener("click", loadModel);
+generateBtn.addEventListener("click", generateAndPlay);
 
-    // Small delay helps Safari after cancel().
-    setTimeout(() => synth.speak(utterance), 50);
-  });
+stopBtn.addEventListener("click", () => {
+  audioEl.pause();
+  audioEl.currentTime = 0;
+  status("Stopped.");
+});
 
-  document.getElementById('pauseBtn').addEventListener('click', () => {
-    if (synth.speaking && !synth.paused) synth.pause();
-  });
+audioEl.addEventListener("ended", () => status("Finished."));
 
-  document.getElementById('resumeBtn').addEventListener('click', () => {
-    if (synth.paused) synth.resume();
-  });
-
-  document.getElementById('stopBtn').addEventListener('click', () => {
-    synth.cancel();
-    setStatus('Stopped.');
-  });
-
-  voiceEl.addEventListener('change', updateVoiceMeta);
-
-  rateEl.addEventListener('input', () => rateVal.textContent = Number(rateEl.value).toFixed(2));
-  pitchEl.addEventListener('input', () => pitchVal.textContent = Number(pitchEl.value).toFixed(2));
-  volumeEl.addEventListener('input', () => volumeVal.textContent = Number(volumeEl.value).toFixed(2));
-
-  if ('speechSynthesis' in window) {
-    populateVoices();
-    synth.onvoiceschanged = populateVoices;
-    // Safari can be slow to populate.
-    setTimeout(populateVoices, 250);
-    setTimeout(populateVoices, 1000);
-  } else {
-    setStatus('This browser does not support the Web Speech API.');
-    document.getElementById('speakBtn').disabled = true;
-  }
-
-  window.addEventListener('beforeunload', () => synth.cancel());
-})();
+window.addEventListener("beforeunload", () => {
+  if (objectURL) URL.revokeObjectURL(objectURL);
+});
 </script>
 </body>
 </html>
