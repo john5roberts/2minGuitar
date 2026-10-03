@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Audition</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: light dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: Canvas;
+      color: CanvasText;
+      padding: 24px;
+    }
+    .app {
+      width: min(760px, 100%);
+      border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 10px 35px rgba(0,0,0,.12);
+      background: Canvas;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+    }
+    .sub {
+      margin: 0 0 22px;
+      opacity: .7;
+      line-height: 1.4;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 16px 0 7px;
+    }
+    textarea, select {
+      width: 100%;
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+      background: Canvas;
+      color: CanvasText;
+    }
+    textarea {
+      min-height: 180px;
+      resize: vertical;
+      padding: 12px;
+      line-height: 1.45;
+    }
+    select {
+      padding: 10px 12px;
+    }
+    .slider-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .slider-card {
+      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .slider-card label {
+      margin: 0 0 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 22px;
+    }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #speakBtn {
+      background: #111;
+      color: white;
+    }
+    @media (prefers-color-scheme: dark) {
+      #speakBtn {
+        background: white;
+        color: black;
+      }
+    }
+    .secondary {
+      background: color-mix(in srgb, CanvasText 10%, Canvas);
+      color: CanvasText;
+    }
+    .status {
+      margin-top: 14px;
+      min-height: 1.3em;
+      font-size: 14px;
+      opacity: .7;
+    }
+    .voice-meta {
+      margin-top: 8px;
+      font-size: 13px;
+      opacity: .65;
+    }
+    @media (max-width: 620px) {
+      .slider-grid { grid-template-columns: 1fr; }
+      .buttons { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Voice Audition</h1>
+    <p class="sub">
+      Test the text-to-speech voices available to this browser and device.
+    </p>
+
+    <label for="text">Text to read</label>
+    <textarea id="text">Now notice that the third of the chord is already inside the scale shape. Play the phrase slowly, and listen for how it resolves.</textarea>
+
+    <label for="voice">Voice</label>
+    <select id="voice"></select>
+    <div id="voiceMeta" class="voice-meta"></div>
+
+    <div class="slider-grid">
+      <div class="slider-card">
+        <label for="rate"><span>Rate</span><span id="rateVal">1.00</span></label>
+        <input id="rate" type="range" min="0.5" max="2" value="1" step="0.05">
+      </div>
+
+      <div class="slider-card">
+        <label for="pitch"><span>Pitch</span><span id="pitchVal">1.00</span></label>
+        <input id="pitch" type="range" min="0" max="2" value="1" step="0.05">
+      </div>
+
+      <div class="slider-card">
+        <label for="volume"><span>Volume</span><span id="volumeVal">1.00</span></label>
+        <input id="volume" type="range" min="0" max="1" value="1" step="0.05">
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="speakBtn">▶ Speak</button>
+      <button id="pauseBtn" class="secondary">Pause</button>
+      <button id="resumeBtn" class="secondary">Resume</button>
+      <button id="stopBtn" class="secondary">Stop</button>
+    </div>
+
+    <div id="status" class="status">Loading voices…</div>
+  </main>
+
+<script>
+(() => {
+  const synth = window.speechSynthesis;
+
+  const textEl = document.getElementById('text');
+  const voiceEl = document.getElementById('voice');
+  const voiceMetaEl = document.getElementById('voiceMeta');
+  const statusEl = document.getElementById('status');
+
+  const rateEl = document.getElementById('rate');
+  const pitchEl = document.getElementById('pitch');
+  const volumeEl = document.getElementById('volume');
+
+  const rateVal = document.getElementById('rateVal');
+  const pitchVal = document.getElementById('pitchVal');
+  const volumeVal = document.getElementById('volumeVal');
+
+  let voices = [];
+
+  function setStatus(msg) {
+    statusEl.textContent = msg;
+  }
+
+  function selectedVoice() {
+    const i = Number(voiceEl.value);
+    return Number.isFinite(i) ? voices[i] : null;
+  }
+
+  function updateVoiceMeta() {
+    const v = selectedVoice();
+    if (!v) {
+      voiceMetaEl.textContent = '';
+      return;
+    }
+    const parts = [
+      v.lang,
+      v.localService ? 'local voice' : 'network/remote voice'
+    ];
+    if (v.default) parts.push('browser default');
+    voiceMetaEl.textContent = parts.join(' • ');
+  }
+
+  function populateVoices() {
+    voices = synth.getVoices();
+
+    voiceEl.innerHTML = '';
+
+    if (!voices.length) {
+      const opt = document.createElement('option');
+      opt.textContent = 'No voices found yet';
+      opt.value = '';
+      voiceEl.appendChild(opt);
+      setStatus('Waiting for the browser to provide voices…');
+      return;
+    }
+
+    // Put English voices first, then all others.
+    voices.sort((a, b) => {
+      const aEng = /^en/i.test(a.lang) ? 0 : 1;
+      const bEng = /^en/i.test(b.lang) ? 0 : 1;
+      if (aEng !== bEng) return aEng - bEng;
+      return a.name.localeCompare(b.name);
+    });
+
+    voices.forEach((voice, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent =
+        `${voice.name} — ${voice.lang}` +
+        `${voice.localService ? '' : ' (remote)'}`;
+      voiceEl.appendChild(option);
+    });
+
+    // Prefer an English default voice if available.
+    let preferred = voices.findIndex(v => v.default && /^en/i.test(v.lang));
+    if (preferred < 0) preferred = voices.findIndex(v => /^en-US/i.test(v.lang));
+    if (preferred < 0) preferred = voices.findIndex(v => /^en/i.test(v.lang));
+    if (preferred < 0) preferred = 0;
+
+    voiceEl.value = preferred;
+    updateVoiceMeta();
+    setStatus(`${voices.length} voices available.`);
+  }
+
+  function makeUtterance() {
+    const text = textEl.value.trim();
+    if (!text) return null;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voice = selectedVoice();
+
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+    }
+
+    utterance.rate = Number(rateEl.value);
+    utterance.pitch = Number(pitchEl.value);
+    utterance.volume = Number(volumeEl.value);
+
+    utterance.onstart = () => setStatus('Speaking…');
+    utterance.onpause = () => setStatus('Paused.');
+    utterance.onresume = () => setStatus('Speaking…');
+    utterance.onend = () => setStatus('Finished.');
+    utterance.onerror = (e) => setStatus(`Speech error: ${e.error || 'unknown error'}`);
+
+    return utterance;
+  }
+
+  document.getElementById('speakBtn').addEventListener('click', () => {
+    // Cancel first so pressing Speak always starts cleanly from the beginning.
+    synth.cancel();
+    const utterance = makeUtterance();
+    if (!utterance) {
+      setStatus('Enter some text first.');
+      return;
+    }
+
+    // Small delay helps Safari after cancel().
+    setTimeout(() => synth.speak(utterance), 50);
+  });
+
+  document.getElementById('pauseBtn').addEventListener('click', () => {
+    if (synth.speaking && !synth.paused) synth.pause();
+  });
+
+  document.getElementById('resumeBtn').addEventListener('click', () => {
+    if (synth.paused) synth.resume();
+  });
+
+  document.getElementById('stopBtn').addEventListener('click', () => {
+    synth.cancel();
+    setStatus('Stopped.');
+  });
+
+  voiceEl.addEventListener('change', updateVoiceMeta);
+
+  rateEl.addEventListener('input', () => rateVal.textContent = Number(rateEl.value).toFixed(2));
+  pitchEl.addEventListener('input', () => pitchVal.textContent = Number(pitchEl.value).toFixed(2));
+  volumeEl.addEventListener('input', () => volumeVal.textContent = Number(volumeEl.value).toFixed(2));
+
+  if ('speechSynthesis' in window) {
+    populateVoices();
+    synth.onvoiceschanged = populateVoices;
+    // Safari can be slow to populate.
+    setTimeout(populateVoices, 250);
+    setTimeout(populateVoices, 1000);
+  } else {
+    setStatus('This browser does not support the Web Speech API.');
+    document.getElementById('speakBtn').disabled = true;
+  }
+
+  window.addEventListener('beforeunload', () => synth.cancel());
+})();
+</script>
+</body>
+</html>
