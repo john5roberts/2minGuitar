@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Solo Lesson Builder 0.13 — iPhone Audio Fix</title>
+<title>Solo Lesson Builder 0.16 — Articulation Audio</title>
 <style>
 :root{
   /* Exact Guit-Map geometry */
@@ -265,6 +265,73 @@ button,select{font:inherit}
   display:none;
 }
 body.player.fingerDemo #fingerLayer{display:block}
+body.player.fingeringPlayback #fingerLayer{display:block}
+
+/* Admin fingering assignment */
+.fingeringTool{
+  width:92px;
+  height:34px;
+  border-radius:9px;
+  border:1px solid rgba(255,20,147,.34);
+  background:linear-gradient(180deg,#172233,#0f1722);
+  color:#eef4fb;
+  padding:0 7px;
+  font-size:10px;
+  font-weight:800;
+  line-height:1;
+  text-align:left;
+  cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+}
+.fingeringTool.on{
+  border-color:rgba(255,20,147,.88);
+  background:linear-gradient(180deg,rgba(76,24,63,.98),rgba(41,12,34,.98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255,20,147,.42),
+    0 0 10px rgba(255,20,147,.18);
+}
+#fingerAssignMark{
+  position:absolute;
+  width:23px;height:23px;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:var(--pink);
+  color:white;
+  font-size:11px;
+  font-weight:800;
+  box-shadow:0 0 12px rgba(255,20,147,.72),0 3px 8px rgba(0,0,0,.46);
+  z-index:60;
+  pointer-events:none;
+}
+#fingerAssignPopup{
+  position:absolute;
+  display:none;
+  width:68px;
+  padding:5px;
+  gap:4px;
+  border-radius:9px;
+  border:1px solid rgba(255,20,147,.56);
+  background:rgba(9,14,22,.97);
+  box-shadow:0 7px 22px rgba(0,0,0,.50);
+  z-index:61;
+}
+#fingerAssignPopup button{
+  width:100%;
+  height:27px;
+  border-radius:6px;
+  border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(180deg,#202d40,#111925);
+  color:#f4f7fb;
+  font-size:9px;
+  font-weight:800;
+  text-align:left;
+  padding:0 7px;
+}
+#fingerAssignPopup button:active{transform:translateY(1px)}
+
 .fingerRect{
   position:absolute;
   left:0;
@@ -575,6 +642,7 @@ body.player .playerOnly{display:grid}
         <div class="sectionLabel">Notes</div>
         <button class="noteTool frameworkTool on" data-tool="framework">Framework</button>
         <button class="noteTool dynamicTool" data-tool="finger">Dynamic</button>
+        <button id="fingeringBtn" class="fingeringTool">Fingering</button>
       </div>
 
       <div class="sidebarSeparator adminOnly"></div>
@@ -610,7 +678,6 @@ body.player .playerOnly{display:grid}
         <button id="playBtn" class="action">Play</button>
         <button id="stopBtn" class="action">Stop</button>
       </div>
-      <button id="fingerDemoBtn" class="action demoAction playerOnly">Finger Demo</button>
       <div class="progress playerOnly"><div id="progressFill" class="progressFill"></div></div>
     </div>
 
@@ -626,6 +693,13 @@ body.player .playerOnly{display:grid}
             <div id="fingerRect1" class="fingerRect"></div>
             <div id="fingerRect2" class="fingerRect"></div>
             <div id="fingerRect3" class="fingerRect"></div>
+          </div>
+          <div id="fingerAssignMark"></div>
+          <div id="fingerAssignPopup">
+            <button data-finger-choice="I">Index</button>
+            <button data-finger-choice="M">Middle</button>
+            <button data-finger-choice="R">Ring</button>
+            <button data-finger-choice="P">Pinky</button>
           </div>
         </div>
       </div>
@@ -653,6 +727,9 @@ body.player .playerOnly{display:grid}
   const eventPanel=document.getElementById('eventPanel');
   const progressFill=document.getElementById('progressFill');
   const fingerRects=[0,1,2,3].map(i=>document.getElementById('fingerRect'+i));
+  const fingeringBtn=document.getElementById('fingeringBtn');
+  const fingerAssignMark=document.getElementById('fingerAssignMark');
+  const fingerAssignPopup=document.getElementById('fingerAssignPopup');
 
   const S={
     tool:'framework',
@@ -666,8 +743,31 @@ body.player .playerOnly{display:grid}
     nextBendId:1,
     previewEventIndex:null,
     audioUnlocked:false,
-    fingerPose:null
+    fingerPose:null,
+    useAssignedFingering:false,
+    fingeringAssign:{
+      active:false,
+      targets:[],
+      cursor:0
+    }
   };
+
+  const FINGER_LETTERS=['I','M','R','P'];
+
+  function fingerIndex(value){
+    if(Number.isInteger(value) && value>=0 && value<4) return value;
+    if(typeof value==='string') return FINGER_LETTERS.indexOf(value.toUpperCase());
+    return -1;
+  }
+
+  function fingerLetter(value){
+    const i=fingerIndex(value);
+    return i>=0?FINGER_LETTERS[i]:null;
+  }
+
+  function validFingerLetter(value){
+    return fingerIndex(value)>=0;
+  }
 
   function blankFingerPose(){
     return {
@@ -735,6 +835,7 @@ body.player .playerOnly{display:grid}
   let guitarSampleBuffers=new Map();
   let guitarSamplesPromise=null;
   let activeGuitarSources=[];
+  let activeBendAudio=null;
 
   function getAudioCtx(){
     if(!guitarAudioCtx){
@@ -927,6 +1028,325 @@ body.player .playerOnly{display:grid}
     return playSampledMidi(midiAt(s,f),volume,duration);
   }
 
+  function trackArticulationSource(src,gain){
+    if(!src) return;
+    const item={src,gain};
+    activeGuitarSources.push(item);
+    src.onended=()=>{
+      const i=activeGuitarSources.indexOf(item);
+      if(i!==-1) activeGuitarSources.splice(i,1);
+      if(activeBendAudio && activeBendAudio.src===src) activeBendAudio=null;
+    };
+  }
+
+  function makeNoiseBuffer(ctx,duration=.08){
+    const frames=Math.max(1,Math.floor(ctx.sampleRate*duration));
+    const b=ctx.createBuffer(1,frames,ctx.sampleRate);
+    const data=b.getChannelData(0);
+    for(let i=0;i<frames;i++) data[i]=(Math.random()*2-1);
+    return b;
+  }
+
+  function playArticulatedMidi(midi,{
+    volume=.14,
+    duration=.62,
+    offset=.05,
+    fadeIn=.008
+  }={}){
+    const ctx=getAudioCtx();
+    if(!ctx || ctx.state!=="running") return false;
+
+    const pick=nearestGuitarSample(midi);
+    if(!pick){
+      return playFallbackMidi(midi,volume*.85,duration);
+    }
+
+    const buffer=guitarSampleBuffers.get(pick.def.midi);
+    const usableOffset=Math.max(0,Math.min(offset,Math.max(0,buffer.duration-.10)));
+    const available=Math.max(.09,buffer.duration-usableOffset-.015);
+    const dur=Math.min(Math.max(.10,duration),available);
+    const now=ctx.currentTime+.004;
+    const src=ctx.createBufferSource();
+    const gain=ctx.createGain();
+
+    src.buffer=buffer;
+    src.playbackRate.value=Math.pow(2,(midi-pick.def.midi)/12);
+
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(
+      Math.max(.008,volume),
+      now+Math.max(.004,fadeIn)
+    );
+    gain.gain.setValueAtTime(
+      Math.max(.008,volume),
+      now+Math.max(.03,dur-.08)
+    );
+    gain.gain.exponentialRampToValueAtTime(.0001,now+dur);
+
+    src.connect(gain);
+    gain.connect(guitarMasterGain||ctx.destination);
+    src.start(now,usableOffset);
+    try{src.stop(now+dur+.02)}catch(_){}
+
+    trackArticulationSource(src,gain);
+    return true;
+  }
+
+  function playHammerImpact(){
+    const ctx=getAudioCtx();
+    if(!ctx || ctx.state!=="running") return;
+
+    const now=ctx.currentTime+.002;
+
+    // Short low finger/fretboard thump.
+    const thump=ctx.createOscillator();
+    const tg=ctx.createGain();
+    thump.type='sine';
+    thump.frequency.setValueAtTime(115,now);
+    thump.frequency.exponentialRampToValueAtTime(72,now+.045);
+    tg.gain.setValueAtTime(.0001,now);
+    tg.gain.exponentialRampToValueAtTime(.070,now+.004);
+    tg.gain.exponentialRampToValueAtTime(.0001,now+.060);
+    thump.connect(tg);
+    tg.connect(guitarMasterGain||ctx.destination);
+    thump.start(now);
+    thump.stop(now+.065);
+    trackArticulationSource(thump,tg);
+
+    // Small high-frequency string snap.
+    const noise=ctx.createBufferSource();
+    const hp=ctx.createBiquadFilter();
+    const ng=ctx.createGain();
+    noise.buffer=makeNoiseBuffer(ctx,.045);
+    hp.type='highpass';
+    hp.frequency.value=1700;
+    ng.gain.setValueAtTime(.0001,now);
+    ng.gain.exponentialRampToValueAtTime(.026,now+.002);
+    ng.gain.exponentialRampToValueAtTime(.0001,now+.035);
+    noise.connect(hp);
+    hp.connect(ng);
+    ng.connect(guitarMasterGain||ctx.destination);
+    noise.start(now);
+    trackArticulationSource(noise,ng);
+  }
+
+  function playSlideSqueak(){
+    const ctx=getAudioCtx();
+    if(!ctx || ctx.state!=="running") return;
+
+    const now=ctx.currentTime+.002;
+    const noise=ctx.createBufferSource();
+    const bp=ctx.createBiquadFilter();
+    const gain=ctx.createGain();
+
+    noise.buffer=makeNoiseBuffer(ctx,.075);
+    bp.type='bandpass';
+    bp.frequency.setValueAtTime(2550,now);
+    bp.Q.value=5.2;
+
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.018,now+.006);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+.060);
+
+    noise.connect(bp);
+    bp.connect(gain);
+    gain.connect(guitarMasterGain||ctx.destination);
+    noise.start(now);
+    trackArticulationSource(noise,gain);
+  }
+
+  async function playSlideArticulation(e,run){
+    const startMidi=midiAt(e.from.s,e.from.f);
+    const endMidi=midiAt(e.to.s,e.to.f);
+    const distance=Math.abs(endMidi-startMidi);
+    const direction=endMidi>=startMidi?1:-1;
+
+    // Continue the already-vibrating starting note without replaying its attack.
+    playArticulatedMidi(startMidi,{
+      volume:.105,
+      duration:.28,
+      offset:.050,
+      fadeIn:.004
+    });
+    playSlideSqueak();
+
+    if(distance===0) return;
+
+    // Accepted prototype timing: rapid fret-by-fret chromatic transition.
+    const stepMs=distance===1?90:42;
+
+    await sleep(58);
+    if(run!==S.runId) return;
+
+    for(let i=1;i<=distance;i++){
+      if(run!==S.runId) return;
+
+      const midi=startMidi+direction*i;
+      const isLast=i===distance;
+
+      playArticulatedMidi(midi,{
+        volume:isLast?.135:.085,
+        duration:isLast?.58:.12,
+        offset:.050,
+        fadeIn:.004
+      });
+
+      if(!isLast) await sleep(stepMs);
+    }
+  }
+
+  function stopActiveBendAudio(fade=.025){
+    if(!activeBendAudio) return;
+    const b=activeBendAudio;
+    activeBendAudio=null;
+
+    try{
+      const ctx=getAudioCtx();
+      const now=ctx?ctx.currentTime:0;
+      if(b.gain && ctx){
+        b.gain.gain.cancelScheduledValues(now);
+        b.gain.gain.setValueAtTime(Math.max(.0001,b.gain.gain.value||.05),now);
+        b.gain.gain.exponentialRampToValueAtTime(.0001,now+fade);
+      }
+      if(b.src) b.src.stop(now+fade+.02);
+      if(b.osc) b.osc.stop(now+fade+.02);
+    }catch(_){}
+  }
+
+  function startBendArticulation(e){
+    stopActiveBendAudio(.015);
+
+    const ctx=getAudioCtx();
+    if(!ctx || ctx.state!=="running") return false;
+
+    const home=e.bendHome || e.from;
+    const startMidi=midiAt(home.s,home.f);
+    const endMidi=midiAt(e.to.s,e.to.f);
+    const semitones=endMidi-startMidi;
+    const bendDuration=.46;
+    const now=ctx.currentTime+.004;
+
+    const pick=nearestGuitarSample(startMidi);
+
+    if(!pick){
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      const f0=440*Math.pow(2,(startMidi-69)/12);
+      const f1=440*Math.pow(2,(endMidi-69)/12);
+
+      osc.type='triangle';
+      osc.frequency.setValueAtTime(f0,now);
+      osc.frequency.exponentialRampToValueAtTime(f1,now+bendDuration);
+
+      gain.gain.setValueAtTime(.0001,now);
+      gain.gain.exponentialRampToValueAtTime(.105,now+.008);
+      gain.gain.setValueAtTime(.105,now+2.0);
+
+      osc.connect(gain);
+      gain.connect(guitarMasterGain||ctx.destination);
+      osc.start(now);
+      osc.stop(now+2.6);
+
+      activeBendAudio={
+        osc,gain,
+        src:null,
+        startMidi,endMidi,
+        startFreq:f0,endFreq:f1
+      };
+      return true;
+    }
+
+    const buffer=guitarSampleBuffers.get(pick.def.midi);
+    const offset=Math.min(.050,Math.max(0,buffer.duration-.12));
+    const src=ctx.createBufferSource();
+    const gain=ctx.createGain();
+
+    src.buffer=buffer;
+
+    const baseRate=Math.pow(2,(startMidi-pick.def.midi)/12);
+    const targetRate=baseRate*Math.pow(2,semitones/12);
+
+    src.playbackRate.setValueAtTime(baseRate,now);
+    src.playbackRate.exponentialRampToValueAtTime(targetRate,now+bendDuration);
+
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.16,now+.008);
+    gain.gain.setValueAtTime(.16,now+2.0);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+2.55);
+
+    src.connect(gain);
+    gain.connect(guitarMasterGain||ctx.destination);
+    src.start(now,offset);
+    try{src.stop(now+2.60)}catch(_){}
+
+    activeBendAudio={
+      src,gain,osc:null,
+      baseRate,targetRate,
+      startMidi,endMidi
+    };
+    trackArticulationSource(src,gain);
+    return true;
+  }
+
+  function releaseBendArticulation(e){
+    const ctx=getAudioCtx();
+    const bend=activeBendAudio;
+
+    if(!ctx || ctx.state!=="running" || !bend){
+      // If the sustained bend source has already ended, simulate the release
+      // with a short attack-suppressed home note.
+      const home=e.bendHome || e.to;
+      playArticulatedMidi(midiAt(home.s,home.f),{
+        volume:.115,duration:.54,offset:.050,fadeIn:.005
+      });
+      return;
+    }
+
+    const now=ctx.currentTime+.004;
+    const releaseDuration=.46;
+
+    try{
+      if(bend.src){
+        bend.src.playbackRate.cancelScheduledValues(now);
+        bend.src.playbackRate.setValueAtTime(bend.targetRate,now);
+        bend.src.playbackRate.exponentialRampToValueAtTime(bend.baseRate,now+releaseDuration);
+      }else if(bend.osc){
+        bend.osc.frequency.cancelScheduledValues(now);
+        bend.osc.frequency.setValueAtTime(bend.endFreq,now);
+        bend.osc.frequency.exponentialRampToValueAtTime(bend.startFreq,now+releaseDuration);
+      }
+
+      bend.gain.gain.cancelScheduledValues(now);
+      bend.gain.gain.setValueAtTime(Math.max(.025,bend.gain.gain.value||.10),now);
+      bend.gain.gain.setValueAtTime(Math.max(.025,bend.gain.gain.value||.10),now+releaseDuration-.03);
+      bend.gain.gain.exponentialRampToValueAtTime(.0001,now+releaseDuration+.12);
+
+      if(bend.src) bend.src.stop(now+releaseDuration+.16);
+      if(bend.osc) bend.osc.stop(now+releaseDuration+.16);
+    }catch(_){}
+
+    activeBendAudio=null;
+  }
+
+  function playHammerOnArticulation(e){
+    playHammerImpact();
+    playArticulatedMidi(midiAt(e.to.s,e.to.f),{
+      volume:.128,
+      duration:.66,
+      offset:.055,
+      fadeIn:.008
+    });
+  }
+
+  function playPullOffArticulation(e){
+    playArticulatedMidi(midiAt(e.to.s,e.to.f),{
+      volume:.112,
+      duration:.54,
+      offset:.045,
+      fadeIn:.006
+    });
+  }
+
   async function unlockSampleAudio(){
     const ctx=getAudioCtx();
     if(!ctx) return false;
@@ -1075,53 +1495,59 @@ body.player .playerOnly{display:grid}
   function setFingerPoseForEvent(e){
     const p=cloneFingerPose(S.fingerPose);
 
-    if(e.type==='fingerOn' && Number.isInteger(e.finger)){
-      p.held.clear();
-      p.held.set(e.finger,{s:e.s,f:e.f});
-      p.baseFret=clampFingerBase(e.f,e.finger);
-      p.activeString=e.s;
-      p.bendFinger=null;
-      p.bendAmount=0;
+    if(e.type==='fingerOn'){
+      const finger=fingerIndex(e.finger);
+      if(finger>=0){
+        p.held.clear();
+        p.held.set(finger,{s:e.s,f:e.f});
+        p.baseFret=clampFingerBase(e.f,finger);
+        p.activeString=e.s;
+        p.bendFinger=null;
+        p.bendAmount=0;
+      }
     }
 
     if(e.type==='move'){
       if(e.movement==='hammer-on'){
+        const fromFinger=fingerIndex(e.fromFinger);
+        const toFinger=fingerIndex(e.toFinger ?? e.finger);
         p.held.clear();
-        if(Number.isInteger(e.fromFinger)) p.held.set(e.fromFinger,clonePos(e.from));
-        if(Number.isInteger(e.toFinger)) p.held.set(e.toFinger,clonePos(e.to));
-        if(Number.isInteger(e.toFinger)) p.baseFret=clampFingerBase(e.to.f,e.toFinger);
+        if(fromFinger>=0) p.held.set(fromFinger,clonePos(e.from));
+        if(toFinger>=0) p.held.set(toFinger,clonePos(e.to));
+        if(toFinger>=0) p.baseFret=clampFingerBase(e.to.f,toFinger);
         p.activeString=e.to.s;
         p.bendFinger=null;
         p.bendAmount=0;
       }
 
       if(e.movement==='pull-off'){
+        const toFinger=fingerIndex(e.toFinger ?? e.finger);
         p.held.clear();
-        if(Number.isInteger(e.toFinger)) p.held.set(e.toFinger,clonePos(e.to));
-        if(Number.isInteger(e.toFinger)) p.baseFret=clampFingerBase(e.to.f,e.toFinger);
+        if(toFinger>=0) p.held.set(toFinger,clonePos(e.to));
+        if(toFinger>=0) p.baseFret=clampFingerBase(e.to.f,toFinger);
         p.activeString=e.to.s;
         p.bendFinger=null;
         p.bendAmount=0;
       }
 
       if(e.movement==='slide'){
-        const finger=Number.isInteger(e.finger)?e.finger:e.toFinger;
+        const finger=fingerIndex(e.finger ?? e.toFinger);
         p.held.clear();
-        if(Number.isInteger(finger)) p.held.set(finger,clonePos(e.to));
-        if(Number.isInteger(finger)) p.baseFret=clampFingerBase(e.to.f,finger);
+        if(finger>=0) p.held.set(finger,clonePos(e.to));
+        if(finger>=0) p.baseFret=clampFingerBase(e.to.f,finger);
         p.activeString=e.to.s;
         p.bendFinger=null;
         p.bendAmount=0;
       }
 
       if(e.movement==='bend'){
-        const finger=Number.isInteger(e.finger)?e.finger:e.toFinger;
+        const finger=fingerIndex(e.finger ?? e.toFinger);
         const home=e.bendHome || (e.bendPhase==='release'?e.to:e.from);
         p.held.clear();
-        if(Number.isInteger(finger) && home) p.held.set(finger,clonePos(home));
-        if(Number.isInteger(finger) && home) p.baseFret=clampFingerBase(home.f,finger);
+        if(finger>=0 && home) p.held.set(finger,clonePos(home));
+        if(finger>=0 && home) p.baseFret=clampFingerBase(home.f,finger);
         p.activeString=home?home.s:e.to.s;
-        p.bendFinger=Number.isInteger(finger)?finger:null;
+        p.bendFinger=finger>=0?finger:null;
 
         if(e.bendPhase==='release'){
           p.bendAmount=0;
@@ -1298,7 +1724,7 @@ body.player .playerOnly{display:grid}
     return ev;
   }
 
-  async function playFingerDemoOne(e,run){
+  async function playFingeredOne(e,run){
     const start=performance.now();
     const target=setFingerPoseForEvent(e);
     drawFingerPose(target,false);
@@ -1306,25 +1732,47 @@ body.player .playerOnly{display:grid}
     if(e.type==='fingerOn'){
       await discretePluckMarker(e,run);
       if(run!==S.runId) return;
+      // Normal pluck remains unchanged.
       playStringSample(e.s,e.f,.20,.72);
+
     }else if(e.type==='move'){
-      if(e.movement==='hammer-on' || e.movement==='pull-off'){
+      if(e.movement==='hammer-on'){
         await connectedMarkerMove(e.to,205,run);
         if(run!==S.runId) return;
-        playStringSample(e.to.s,e.to.f,.20,.72);
-      }else if(e.movement==='slide'){
-        await connectedMarkerMove(e.to,460,run);
+        playHammerOnArticulation(e);
+
+      }else if(e.movement==='pull-off'){
+        await connectedMarkerMove(e.to,205,run);
         if(run!==S.runId) return;
-        playStringSample(e.to.s,e.to.f,.20,.72);
+        playPullOffArticulation(e);
+
+      }else if(e.movement==='slide'){
+        // Start the squeak + rapid chromatic transition while the hand and
+        // pink note marker are visibly sliding.
+        const audioPromise=playSlideArticulation(e,run);
+        await connectedMarkerMove(e.to,460,run);
+        await audioPromise;
+        if(run!==S.runId) return;
+
       }else if(e.movement==='bend'){
+        // Bend audio and graphics move together.
+        if(e.bendPhase==='release'){
+          releaseBendArticulation(e);
+        }else{
+          startBendArticulation(e);
+        }
+
         await bendMarkerMove(e,460,run);
         if(run!==S.runId) return;
-        playStringSample(e.to.s,e.to.f,.20,.72);
       }
     }
 
     const elapsed=performance.now()-start;
     if(elapsed<1000) await sleep(1000-elapsed);
+  }
+
+  async function playFingerDemoOne(e,run){
+    return playFingeredOne(e,run);
   }
 
   async function playFingeringDemo(){
@@ -1574,6 +2022,7 @@ body.player .playerOnly{display:grid}
 
   function handlePosition(s,f){
     if(document.body.classList.contains('player')) return;
+    if(S.fingeringAssign.active) return;
     exitSequencePreview();
     const k=posKey(s,f);
 
@@ -1665,13 +2114,266 @@ body.player .playerOnly{display:grid}
     return kind;
   }
 
+  function fingeringTargets(){
+    const targets=[];
+    S.events.forEach((e,eventIndex)=>{
+      if(e.play===false) return;
+
+      if(e.type==='fingerOn'){
+        targets.push({
+          eventIndex,
+          pos:{s:e.s,f:e.f},
+          kind:'pluck'
+        });
+        return;
+      }
+
+      if(e.type==='move' && (e.movement==='hammer-on' || e.movement==='pull-off')){
+        targets.push({
+          eventIndex,
+          pos:clonePos(e.to),
+          kind:e.movement
+        });
+      }
+      // Slide destinations inherit the origin finger.
+      // Bend phantom notes and bend releases also inherit the physical finger.
+    });
+    return targets;
+  }
+
+  function clearFingerAssignmentData(){
+    for(const e of S.events){
+      if(e.type==='fingerOn'){
+        delete e.finger;
+      }else if(e.type==='move'){
+        delete e.finger;
+        delete e.fromFinger;
+        delete e.toFinger;
+      }
+    }
+  }
+
+  function propagateFingerAssignments(){
+    let currentFinger=null;
+
+    for(const e of S.events){
+      if(e.type==='frameworkOn' || e.type==='frameworkOff') continue;
+
+      if(e.type==='fingerOff'){
+        currentFinger=null;
+        continue;
+      }
+
+      if(e.type==='fingerOn'){
+        currentFinger=validFingerLetter(e.finger)?fingerLetter(e.finger):null;
+        continue;
+      }
+
+      if(e.type!=='move') continue;
+
+      const fromFinger=currentFinger;
+
+      if(e.movement==='hammer-on' || e.movement==='pull-off'){
+        const toFinger=validFingerLetter(e.finger)?fingerLetter(e.finger):null;
+
+        if(fromFinger) e.fromFinger=fromFinger;
+        else delete e.fromFinger;
+
+        if(toFinger){
+          e.toFinger=toFinger;
+          e.finger=toFinger;
+          currentFinger=toFinger;
+        }else{
+          delete e.toFinger;
+          currentFinger=null;
+        }
+        continue;
+      }
+
+      if(e.movement==='slide' || e.movement==='bend'){
+        if(fromFinger){
+          e.finger=fromFinger;
+          e.fromFinger=fromFinger;
+          e.toFinger=fromFinger;
+          currentFinger=fromFinger;
+        }else{
+          delete e.finger;
+          delete e.fromFinger;
+          delete e.toFinger;
+          currentFinger=null;
+        }
+      }
+    }
+  }
+
+  function fingeringReady(){
+    const targets=fingeringTargets();
+    if(!targets.length) return false;
+
+    if(!targets.every(t=>validFingerLetter(S.events[t.eventIndex].finger))) return false;
+
+    propagateFingerAssignments();
+
+    return S.events
+      .filter(isTimedEvent)
+      .every(e=>{
+        if(e.type==='fingerOn') return validFingerLetter(e.finger);
+        if(e.type==='move') return validFingerLetter(e.finger);
+        return true;
+      });
+  }
+
+  function renderAssignmentBackground(){
+    clearOverlays();
+
+    const frames=new Map();
+    for(const e of S.events){
+      if(e.type==='frameworkOn') frames.set(posKey(e.s,e.f),{s:e.s,f:e.f});
+      if(e.type==='frameworkOff') frames.delete(posKey(e.s,e.f));
+    }
+
+    for(const p of frames.values()){
+      makeMark(`frameworkMark ${isInKey(p.s,p.f)?'in':'out'}`,p.s,p.f,noteName(p.s,p.f));
+    }
+  }
+
+  function hideFingerAssignmentOverlay(){
+    fingerAssignMark.style.display='none';
+    fingerAssignPopup.style.display='none';
+    eventPanel.querySelectorAll('.event').forEach(el=>el.classList.remove('selected'));
+  }
+
+  function currentFingeringTarget(){
+    if(!S.fingeringAssign.active) return null;
+    return S.fingeringAssign.targets[S.fingeringAssign.cursor] || null;
+  }
+
+  function showFingeringTarget(){
+    const target=currentFingeringTarget();
+    if(!target){
+      finishFingeringAssignment();
+      return;
+    }
+
+    renderAssignmentBackground();
+
+    const p=shellPoint(target.pos.s,target.pos.f);
+    fingerAssignMark.textContent=noteName(target.pos.s,target.pos.f);
+    fingerAssignMark.style.left=p.x+'px';
+    fingerAssignMark.style.top=p.y+'px';
+    fingerAssignMark.style.display='flex';
+
+    const popupWidth=68;
+    const gap=17;
+    const shellWidth=shell.clientWidth || 183;
+    let left=p.x+gap;
+
+    // Put the popup on the left for notes near the high-E side.
+    if(p.x > shellWidth*.58) left=p.x-popupWidth-gap;
+
+    left=Math.max(-4,left);
+    const popupHeight=5 + 4*27 + 3*4 + 5;
+    let top=p.y-popupHeight/2;
+    const maxTop=Math.max(2,(shell.clientHeight||642)-popupHeight-2);
+    top=Math.max(2,Math.min(maxTop,top));
+
+    fingerAssignPopup.style.left=left+'px';
+    fingerAssignPopup.style.top=top+'px';
+    fingerAssignPopup.style.display='grid';
+
+    eventPanel.querySelectorAll('.event').forEach(el=>el.classList.remove('selected'));
+    const row=eventPanel.querySelector(`.event[data-original-index="${target.eventIndex}"]`);
+    if(row){
+      row.classList.add('selected');
+      row.scrollIntoView({block:'nearest'});
+    }
+  }
+
+  function finishFingeringAssignment(){
+    if(!S.fingeringAssign.active) return;
+
+    propagateFingerAssignments();
+    S.fingeringAssign.active=false;
+    S.fingeringAssign.targets=[];
+    S.fingeringAssign.cursor=0;
+
+    fingeringBtn.classList.remove('on');
+    hideFingerAssignmentOverlay();
+    renderEventList();
+
+    // End with no assignment-pink showing, as requested.
+    renderAssignmentBackground();
+  }
+
+  function cancelFingeringAssignment(render=true){
+    if(!S.fingeringAssign.active) return;
+
+    S.fingeringAssign.active=false;
+    S.fingeringAssign.targets=[];
+    S.fingeringAssign.cursor=0;
+    fingeringBtn.classList.remove('on');
+    hideFingerAssignmentOverlay();
+
+    if(render) renderAuthor();
+  }
+
+  function startFingeringAssignment(){
+    exitSequencePreview();
+    S.pendingMove=null;
+    updateMoveButtons();
+
+    const targets=fingeringTargets();
+    if(!targets.length){
+      announce('Add Dynamic notes before assigning fingering.',false);
+      return;
+    }
+
+    clearFingerAssignmentData();
+
+    S.fingeringAssign.active=true;
+    S.fingeringAssign.targets=targets;
+    S.fingeringAssign.cursor=0;
+    fingeringBtn.classList.add('on');
+
+    renderEventList();
+    showFingeringTarget();
+  }
+
+  function chooseAssignedFinger(letter){
+    const target=currentFingeringTarget();
+    if(!target) return;
+
+    const e=S.events[target.eventIndex];
+    e.finger=letter;
+
+    S.fingeringAssign.cursor++;
+    renderEventList();
+
+    if(S.fingeringAssign.cursor>=S.fingeringAssign.targets.length){
+      finishFingeringAssignment();
+    }else{
+      showFingeringTarget();
+    }
+  }
+
+  function fingerSuffix(e){
+    const f=fingerLetter(e.finger);
+    return f?` [${f}]`:'';
+  }
+
+  function playerEventLabel(e){
+    if(e.type==='fingerOn') return noteName(e.s,e.f);
+    if(e.type==='move' && e.to) return noteName(e.to.s,e.to.f);
+    return '';
+  }
+
   function describe(e){
     if(e.type==='frameworkOn') return `Frame + ${noteName(e.s,e.f)}`;
     if(e.type==='frameworkOff') return `Frame − ${noteName(e.s,e.f)}`;
-    if(e.type==='fingerOn') return `Pluck ${noteName(e.s,e.f)}`;
+    if(e.type==='fingerOn') return `Pluck ${noteName(e.s,e.f)}${fingerSuffix(e)}`;
     if(e.type==='move'){
       const suffix=(e.movement==='bend' && e.bendPhase==='release')?' release':'';
-      return `${prettyMove(e.movement)}${suffix} ${noteName(e.from.s,e.from.f)}→${noteName(e.to.s,e.to.f)}`;
+      return `${prettyMove(e.movement)}${suffix} ${noteName(e.from.s,e.from.f)}→${noteName(e.to.s,e.to.f)}${fingerSuffix(e)}`;
     }
     return e.type;
   }
@@ -1688,6 +2390,7 @@ body.player .playerOnly{display:grid}
   }
 
   function previewSequenceState(originalEventIndex,row){
+    if(S.fingeringAssign.active) return;
     const st=blankState();
     for(let i=0;i<=originalEventIndex;i++){
       applyEventInstant(st,S.events[i]);
@@ -1751,6 +2454,7 @@ body.player .playerOnly{display:grid}
   }
 
   function setTool(tool){
+    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     exitSequencePreview();
     S.tool=tool;
     document.querySelectorAll('.noteTool').forEach(b=>b.classList.toggle('on',b.dataset.tool===tool));
@@ -1758,6 +2462,7 @@ body.player .playerOnly{display:grid}
   }
 
   function armMove(kind){
+    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     exitSequencePreview();
     if(S.tool!=='finger') setTool('finger');
 
@@ -1781,6 +2486,7 @@ body.player .playerOnly{display:grid}
   }
 
   function undo(){
+    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     exitSequencePreview();
     if(!S.events.length) return;
     S.events.pop();
@@ -1791,10 +2497,14 @@ body.player .playerOnly{display:grid}
   }
 
   function clearAll(){
+    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     exitSequencePreview();
     S.events=[];
     S.pendingMove=null;
     S.nextBendId=1;
+    S.fingeringAssign={active:false,targets:[],cursor:0};
+    fingeringBtn.classList.remove('on');
+    hideFingerAssignmentOverlay();
     updateMoveButtons();
     rebuildAuthor();
     statusEl.innerHTML=toolHelp();
@@ -1837,28 +2547,46 @@ body.player .playerOnly{display:grid}
   function sleep(ms){return new Promise(r=>S.timer=setTimeout(r,ms))}
 
   async function animateMove(e){
-    // Start with the current originating state visible.
+    // Legacy visual fallback only. Even without complete fingering data,
+    // movement-specific articulation audio is preserved.
     renderPlayback();
 
-    const {line,a,z}=makeAnimatedPinkLine(e.from,e.to);
-    showMoveLabel(e.movement,a,z);
-
-    requestAnimationFrame(()=>{
-      line.style.transition='stroke-dashoffset 850ms linear';
-      line.setAttribute('stroke-dashoffset','0');
-    });
+    if(e.movement==='slide'){
+      playSlideArticulation(e,S.runId);
+    }else if(e.movement==='bend'){
+      if(e.bendPhase==='release') releaseBendArticulation(e);
+      else startBendArticulation(e);
+    }
 
     await sleep(850);
 
-    // Destination state: bend-up creates a ring; bend release creates solid pink.
     applyEventInstant(S.playback,e);
     renderPlayback();
-    playStringSample(e.to.s,e.to.f,.20,.72);
+
+    if(e.movement==='hammer-on'){
+      playHammerOnArticulation(e);
+    }else if(e.movement==='pull-off'){
+      playPullOffArticulation(e);
+    }
 
     await sleep(150);
   }
 
-  async function playOne(e){
+  function renderPlaybackFrameworkOnly(){
+    document.querySelectorAll('.frameworkMark').forEach(x=>x.remove());
+    for(const p of S.playback.framework.values()){
+      makeMark(`frameworkMark ${isInKey(p.s,p.f)?'in':'out'}`,p.s,p.f,noteName(p.s,p.f));
+    }
+  }
+
+  async function playOne(e,run){
+    if(S.useAssignedFingering && validFingerLetter(e.finger)){
+      await playFingeredOne(e,run);
+      if(run!==S.runId) return;
+      applyEventInstant(S.playback,e);
+      return;
+    }
+
     if(e.type==='move'){
       await animateMove(e);
       return;
@@ -1877,8 +2605,20 @@ body.player .playerOnly{display:grid}
   async function playAll(){
     stopPlayback(false);
     document.body.classList.remove('fingerDemo');
+    document.body.classList.remove('fingeringPlayback');
+
     const run=++S.runId;
     S.playback=blankState();
+    moveSvg.innerHTML='';
+    document.querySelectorAll('.moveLabel').forEach(x=>x.remove());
+    S.useAssignedFingering=fingeringReady();
+    S.fingerPose=blankFingerPose();
+
+    if(S.useAssignedFingering){
+      document.body.classList.add('fingeringPlayback');
+      drawFingerPose(S.fingerPose,true);
+    }
+
     renderPlayback();
     progressFill.style.width='0%';
 
@@ -1900,14 +2640,29 @@ body.player .playerOnly{display:grid}
 
       if(!isTimedEvent(e)){
         applyEventInstant(S.playback,e);
-        renderPlayback();
+
+        if(S.useAssignedFingering){
+          if(e.type==='frameworkOn' || e.type==='frameworkOff'){
+            renderPlaybackFrameworkOnly();
+          }else if(e.type==='fingerOff'){
+            const dot=currentPlaybackDot();
+            const ring=currentPlaybackBendRing();
+            if(dot) dot.remove();
+            if(ring) ring.remove();
+            S.fingerPose=blankFingerPose();
+            drawFingerPose(S.fingerPose,false);
+          }
+        }else{
+          renderPlayback();
+        }
         continue;
       }
 
       timedIndex++;
-      statusEl.innerHTML=`<strong>${timedIndex}/${timedTotal}</strong><br>${describe(e)}`;
+      const playerLabel=playerEventLabel(e);
+      statusEl.innerHTML=`<strong>${timedIndex}/${timedTotal}</strong>${playerLabel?`<br>${playerLabel}`:''}`;
       progressFill.style.width=`${timedTotal?((timedIndex-1)/timedTotal)*100:0}%`;
-      await playOne(e);
+      await playOne(e,run);
     }
 
     if(run===S.runId){
@@ -1918,10 +2673,13 @@ body.player .playerOnly{display:grid}
 
   function stopPlayback(reset=true){
     S.runId++;
+    stopActiveBendAudio(.02);
     if(S.timer){clearTimeout(S.timer);S.timer=null}
     moveSvg.innerHTML='';
     document.querySelectorAll('.moveLabel').forEach(x=>x.remove());
     document.body.classList.remove('fingerDemo');
+    document.body.classList.remove('fingeringPlayback');
+    S.useAssignedFingering=false;
     S.fingerPose=blankFingerPose();
     drawFingerPose(S.fingerPose,true);
     if(reset) progressFill.style.width='0%';
@@ -1929,13 +2687,14 @@ body.player .playerOnly{display:grid}
     if(document.body.classList.contains('player')){
       S.playback=blankState();
       renderPlayback();
-      statusEl.innerHTML='<strong>Player</strong><br>Press Play, or use Finger Demo for the temporary manually fingered test lesson.';
+      statusEl.innerHTML='<strong>Player</strong><br>Press Play. Assigned fingering is used automatically when the sequence has a complete fingering pass.';
     }else{
       renderAuthor();
     }
   }
 
   function enterAdmin(){
+    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     clearSequenceSelection();
     stopPlayback();
     document.body.classList.remove('player');
@@ -1946,13 +2705,15 @@ body.player .playerOnly{display:grid}
   }
 
   function enterPlayer(){
+    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
+    propagateFingerAssignments();
     stopPlayback();
     document.body.classList.add('player');
     document.getElementById('playerTab').classList.add('on');
     document.getElementById('adminTab').classList.remove('on');
     S.playback=blankState();
     renderPlayback();
-    statusEl.innerHTML='<strong>Player</strong><br>Press Play, or use Finger Demo for the temporary manually fingered test lesson.';
+    statusEl.innerHTML='<strong>Player</strong><br>Press Play. Assigned fingering is used automatically when the sequence has a complete fingering pass.';
   }
 
   KEYS.forEach(([name,pc])=>keySel.add(new Option(name,pc)));
@@ -1966,6 +2727,10 @@ body.player .playerOnly{display:grid}
 
   document.querySelectorAll('.noteTool').forEach(b=>bindTap(b,()=>setTool(b.dataset.tool)));
   document.querySelectorAll('.moveBtn').forEach(b=>bindTap(b,()=>armMove(b.dataset.move)));
+  bindTap(fingeringBtn,startFingeringAssignment);
+  document.querySelectorAll('[data-finger-choice]').forEach(b=>{
+    bindTap(b,()=>chooseAssignedFinger(b.dataset.fingerChoice));
+  });
 
   bindTap(document.getElementById('undoBtn'),undo);
   bindTap(document.getElementById('clearBtn'),clearAll);
@@ -1973,7 +2738,6 @@ body.player .playerOnly{display:grid}
   bindTap(document.getElementById('playerTab'),enterPlayer);
   bindTap(document.getElementById('playBtn'),playAll);
   bindTap(document.getElementById('stopBtn'),()=>stopPlayback());
-  bindTap(document.getElementById('fingerDemoBtn'),playFingeringDemo);
 
   drawBoard();
   drawFingerPose(S.fingerPose,true);
