@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Solo Lesson Builder 0.16 — Articulation Audio</title>
+<title>Solo Lesson Builder 0.21 — Local Editing and Movement Cues</title>
 <style>
 :root{
   /* Exact Guit-Map geometry */
@@ -28,12 +28,17 @@
 }
 html,body{
   margin:0;
-  background:radial-gradient(circle at 50% 0%,#182235 0%,#0b0f17 42%,#05070b 100%);
+  background:#05070b;
   color:var(--text-main);
 }
+html{
+  min-height:100%;
+}
 body{
+  position:relative;
   width:100%;
   min-width:max-content;
+  min-height:100vh;
   font-family:Arial,Helvetica,sans-serif;
   font-size:14px;
   display:flex;
@@ -47,6 +52,7 @@ button,select{font:inherit}
 /* Guit-Map shell dimensions */
 .app{
   position:relative;
+  z-index:1;
   display:inline-block;
   flex-shrink:0;
   border:1px solid rgba(180,205,240,.16);
@@ -306,24 +312,52 @@ body.player.fingeringPlayback #fingerLayer{display:block}
   z-index:60;
   pointer-events:none;
 }
+#fingerAssignDestinationMark{
+  position:absolute;
+  width:8px;height:8px;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  display:none;
+  background:var(--pink);
+  box-shadow:0 0 7px rgba(255,20,147,.72);
+  z-index:59;
+  pointer-events:none;
+}
 #fingerAssignPopup{
   position:absolute;
   display:none;
-  width:68px;
-  padding:5px;
+  width:88px;
+  padding:6px;
   gap:4px;
-  border-radius:9px;
-  border:1px solid rgba(255,20,147,.56);
-  background:rgba(9,14,22,.97);
-  box-shadow:0 7px 22px rgba(0,0,0,.50);
+  border-radius:10px;
+  border:1px solid rgba(255,20,147,.48);
+  background:rgba(9,14,22,.78);
+  -webkit-backdrop-filter:blur(7px) saturate(110%);
+  backdrop-filter:blur(7px) saturate(110%);
+  box-shadow:0 7px 22px rgba(0,0,0,.42);
   z-index:61;
+}
+#fingerAssignMovement{
+  min-height:20px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:2px 5px 4px;
+  border-bottom:1px solid rgba(255,255,255,.11);
+  color:#ff78bf;
+  font-size:9px;
+  line-height:1.05;
+  font-weight:900;
+  letter-spacing:.055em;
+  text-align:center;
+  text-transform:uppercase;
 }
 #fingerAssignPopup button{
   width:100%;
   height:27px;
   border-radius:6px;
-  border:1px solid rgba(255,255,255,.14);
-  background:linear-gradient(180deg,#202d40,#111925);
+  border:1px solid rgba(255,255,255,.13);
+  background:rgba(24,34,48,.78);
   color:#f4f7fb;
   font-size:9px;
   font-weight:800;
@@ -695,7 +729,9 @@ body.player .playerOnly{display:grid}
             <div id="fingerRect3" class="fingerRect"></div>
           </div>
           <div id="fingerAssignMark"></div>
+          <div id="fingerAssignDestinationMark"></div>
           <div id="fingerAssignPopup">
+            <div id="fingerAssignMovement">Pluck</div>
             <button data-finger-choice="I">Index</button>
             <button data-finger-choice="M">Middle</button>
             <button data-finger-choice="R">Ring</button>
@@ -729,7 +765,10 @@ body.player .playerOnly{display:grid}
   const fingerRects=[0,1,2,3].map(i=>document.getElementById('fingerRect'+i));
   const fingeringBtn=document.getElementById('fingeringBtn');
   const fingerAssignMark=document.getElementById('fingerAssignMark');
+  const fingerAssignDestinationMark=document.getElementById('fingerAssignDestinationMark');
   const fingerAssignPopup=document.getElementById('fingerAssignPopup');
+  const fingerAssignMovement=document.getElementById('fingerAssignMovement');
+  let fingerAssignFlashTimer=null;
 
   const S={
     tool:'framework',
@@ -1159,7 +1198,6 @@ body.player .playerOnly{display:grid}
     const startMidi=midiAt(e.from.s,e.from.f);
     const endMidi=midiAt(e.to.s,e.to.f);
     const distance=Math.abs(endMidi-startMidi);
-    const direction=endMidi>=startMidi?1:-1;
 
     // Continue the already-vibrating starting note without replaying its attack.
     playArticulatedMidi(startMidi,{
@@ -1173,16 +1211,25 @@ body.player .playerOnly{display:grid}
     if(distance===0) return;
 
     // Accepted prototype timing: rapid fret-by-fret chromatic transition.
+    // Make the travel explicit so descending slides get the same quantized,
+    // stepped semitone sequence as ascending slides.
     const stepMs=distance===1?90:42;
+
+    const midis=[];
+    if(endMidi>startMidi){
+      for(let midi=startMidi+1; midi<=endMidi; midi++) midis.push(midi);
+    }else{
+      for(let midi=startMidi-1; midi>=endMidi; midi--) midis.push(midi);
+    }
 
     await sleep(58);
     if(run!==S.runId) return;
 
-    for(let i=1;i<=distance;i++){
+    for(let i=0;i<midis.length;i++){
       if(run!==S.runId) return;
 
-      const midi=startMidi+direction*i;
-      const isLast=i===distance;
+      const midi=midis[i];
+      const isLast=i===midis.length-1;
 
       playArticulatedMidi(midi,{
         volume:isLast?.135:.085,
@@ -2114,6 +2161,45 @@ body.player .playerOnly{display:grid}
     return kind;
   }
 
+  function samePos(a,b){
+    return !!(a && b && a.s===b.s && a.f===b.f);
+  }
+
+  function nextMovementFromTarget(target){
+    if(!target) return null;
+
+    for(let i=target.eventIndex+1;i<S.events.length;i++){
+      const e=S.events[i];
+
+      // Framework and edit-only events do not advance the performed phrase.
+      if(e.type==='frameworkOn' || e.type==='frameworkOff' || e.play===false) continue;
+
+      if(e.type==='move' && samePos(e.from,target.pos)){
+        return e;
+      }
+      break;
+    }
+    return null;
+  }
+
+  function fingeringTargetLabel(target){
+    if(!target) return '';
+
+    const upcoming=nextMovementFromTarget(target);
+    if(upcoming){
+      if(upcoming.movement==='bend' && upcoming.bendPhase==='release') return 'Bend release';
+      return prettyMove(upcoming.movement);
+    }
+
+    if(target.kind==='pluck') return 'Pluck';
+    if(target.kind==='hammer-on') return 'Hammer-on';
+    if(target.kind==='pull-off') return 'Pull-off';
+    if(target.kind==='slide') return 'Slide';
+    if(target.kind==='bend') return 'Bend';
+    if(target.kind==='bend-release') return 'Bend release';
+    return prettyMove(target.kind || '');
+  }
+
   function fingeringTargets(){
     const targets=[];
     S.events.forEach((e,eventIndex)=>{
@@ -2238,7 +2324,12 @@ body.player .playerOnly{display:grid}
   }
 
   function hideFingerAssignmentOverlay(){
+    if(fingerAssignFlashTimer){
+      clearTimeout(fingerAssignFlashTimer);
+      fingerAssignFlashTimer=null;
+    }
     fingerAssignMark.style.display='none';
+    fingerAssignDestinationMark.style.display='none';
     fingerAssignPopup.style.display='none';
     eventPanel.querySelectorAll('.event').forEach(el=>el.classList.remove('selected'));
   }
@@ -2248,7 +2339,7 @@ body.player .playerOnly{display:grid}
     return S.fingeringAssign.targets[S.fingeringAssign.cursor] || null;
   }
 
-  function showFingeringTarget(){
+  function showFingeringTarget(repeatPosition=false){
     const target=currentFingeringTarget();
     if(!target){
       finishFingeringAssignment();
@@ -2257,22 +2348,63 @@ body.player .playerOnly{display:grid}
 
     renderAssignmentBackground();
 
+    if(fingerAssignFlashTimer){
+      clearTimeout(fingerAssignFlashTimer);
+      fingerAssignFlashTimer=null;
+    }
+
     const p=shellPoint(target.pos.s,target.pos.f);
     fingerAssignMark.textContent=noteName(target.pos.s,target.pos.f);
     fingerAssignMark.style.left=p.x+'px';
     fingerAssignMark.style.top=p.y+'px';
-    fingerAssignMark.style.display='flex';
 
-    const popupWidth=68;
-    const gap=17;
+    // If two consecutive assignments use the same physical note, briefly
+    // remove the pink dot before restoring it. This makes the completed
+    // prior assignment visually unmistakable.
+    if(repeatPosition){
+      fingerAssignMark.style.display='none';
+      fingerAssignFlashTimer=setTimeout(()=>{
+        if(!S.fingeringAssign.active) return;
+        const nowTarget=currentFingeringTarget();
+        if(!nowTarget) return;
+        if(nowTarget.pos.s!==target.pos.s || nowTarget.pos.f!==target.pos.f) return;
+        fingerAssignMark.style.display='flex';
+        fingerAssignFlashTimer=null;
+      },150);
+    }else{
+      fingerAssignMark.style.display='flex';
+    }
+
+    if(fingerAssignMovement){
+      fingerAssignMovement.textContent=fingeringTargetLabel(target);
+    }
+
+    // If this finger position leads directly into a movement, show its
+    // destination as a much smaller pink dot so the Admin can keep spatial
+    // orientation without confusing it with the finger being assigned.
+    const upcomingMove=nextMovementFromTarget(target);
+    if(
+      upcomingMove &&
+      ['hammer-on','pull-off','slide','bend'].includes(upcomingMove.movement)
+    ){
+      const dest=shellPoint(upcomingMove.to.s,upcomingMove.to.f);
+      fingerAssignDestinationMark.style.left=dest.x+'px';
+      fingerAssignDestinationMark.style.top=dest.y+'px';
+      fingerAssignDestinationMark.style.display='block';
+    }else{
+      fingerAssignDestinationMark.style.display='none';
+    }
+
+    const popupWidth=88;
+    const gap=29;
     const shellWidth=shell.clientWidth || 183;
     let left=p.x+gap;
 
     // Put the popup on the left for notes near the high-E side.
     if(p.x > shellWidth*.58) left=p.x-popupWidth-gap;
 
-    left=Math.max(-4,left);
-    const popupHeight=5 + 4*27 + 3*4 + 5;
+    left=Math.max(-10,left);
+    const popupHeight=6 + 20 + 4 + 4*27 + 3*4 + 6;
     let top=p.y-popupHeight/2;
     const maxTop=Math.max(2,(shell.clientHeight||642)-popupHeight-2);
     top=Math.max(2,Math.min(maxTop,top));
@@ -2346,13 +2478,21 @@ body.player .playerOnly{display:grid}
     const e=S.events[target.eventIndex];
     e.finger=letter;
 
+    const priorPos=clonePos(target.pos);
+
     S.fingeringAssign.cursor++;
     renderEventList();
 
     if(S.fingeringAssign.cursor>=S.fingeringAssign.targets.length){
       finishFingeringAssignment();
     }else{
-      showFingeringTarget();
+      const nextTarget=currentFingeringTarget();
+      const repeatPosition=!!(
+        nextTarget &&
+        nextTarget.pos.s===priorPos.s &&
+        nextTarget.pos.f===priorPos.f
+      );
+      showFingeringTarget(repeatPosition);
     }
   }
 
@@ -2485,11 +2625,84 @@ body.player .playerOnly{display:grid}
     });
   }
 
+  function isFrameworkEvent(e){
+    return e && (e.type==='frameworkOn' || e.type==='frameworkOff');
+  }
+
+  function isDynamicEvent(e){
+    return e && !isFrameworkEvent(e);
+  }
+
+  function removeLastMatchingEvent(predicate){
+    for(let i=S.events.length-1;i>=0;i--){
+      if(predicate(S.events[i])){
+        S.events.splice(i,1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function clearMatchingEvents(predicate){
+    const before=S.events.length;
+    S.events=S.events.filter(e=>!predicate(e));
+    return S.events.length!==before;
+  }
+
+  function undoFingeringAssignment(){
+    if(!S.fingeringAssign.active) return false;
+    if(S.fingeringAssign.cursor<=0) return false;
+
+    S.fingeringAssign.cursor--;
+    const target=currentFingeringTarget();
+    if(!target) return false;
+
+    const e=S.events[target.eventIndex];
+    delete e.finger;
+    delete e.fromFinger;
+    delete e.toFinger;
+
+    renderEventList();
+    showFingeringTarget(false);
+    return true;
+  }
+
+  function clearFingeringAssignmentsOnly(){
+    if(!S.fingeringAssign.active) return false;
+
+    clearFingerAssignmentData();
+    S.fingeringAssign.cursor=0;
+    renderEventList();
+    showFingeringTarget(false);
+    return true;
+  }
+
   function undo(){
-    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     exitSequencePreview();
-    if(!S.events.length) return;
-    S.events.pop();
+
+    // Fingering mode: undo only the most recent finger assignment.
+    if(S.fingeringAssign.active){
+      if(undoFingeringAssignment()){
+        announce('Last fingering assignment undone.',false);
+      }
+      return;
+    }
+
+    let changed=false;
+
+    // Framework mode: ignore Dynamic/Fingering work and undo only the most
+    // recent Framework operation.
+    if(S.tool==='framework'){
+      changed=removeLastMatchingEvent(isFrameworkEvent);
+    }
+    // Dynamic mode: undo only the most recent Dynamic operation, leaving
+    // Framework events untouched.
+    else if(S.tool==='finger'){
+      changed=removeLastMatchingEvent(isDynamicEvent);
+    }
+
+    if(!changed) return;
+
     S.pendingMove=null;
     updateMoveButtons();
     rebuildAuthor();
@@ -2497,16 +2710,35 @@ body.player .playerOnly{display:grid}
   }
 
   function clearAll(){
-    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     exitSequencePreview();
-    S.events=[];
+
+    // Fingering mode: Clear means clear fingering assignments only. It does
+    // not remove Framework notes, Dynamic notes, or movement events.
+    if(S.fingeringAssign.active){
+      if(clearFingeringAssignmentsOnly()){
+        announce('Fingering assignments cleared.',false);
+      }
+      return;
+    }
+
+    let changed=false;
+
+    // Framework mode: Clear removes Framework events only.
+    if(S.tool==='framework'){
+      changed=clearMatchingEvents(isFrameworkEvent);
+    }
+    // Dynamic mode: Clear removes Dynamic notes/movements/edit events only.
+    else if(S.tool==='finger'){
+      changed=clearMatchingEvents(isDynamicEvent);
+      if(changed) S.nextBendId=1;
+    }
+
     S.pendingMove=null;
-    S.nextBendId=1;
-    S.fingeringAssign={active:false,targets:[],cursor:0};
-    fingeringBtn.classList.remove('on');
-    hideFingerAssignmentOverlay();
     updateMoveButtons();
-    rebuildAuthor();
+
+    if(changed) rebuildAuthor();
+    else renderAuthor();
+
     statusEl.innerHTML=toolHelp();
   }
 
