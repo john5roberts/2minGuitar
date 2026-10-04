@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Solo Lesson Builder 0.12 — Fingering Integration</title>
+<title>Solo Lesson Builder 0.13 — iPhone Audio Fix</title>
 <style>
 :root{
   /* Exact Guit-Map geometry */
@@ -748,6 +748,58 @@ body.player .playerOnly{display:grid}
     return guitarAudioCtx;
   }
 
+
+  // iOS Safari is stricter than desktop browsers: creating/resuming the
+  // AudioContext is not always enough. Start a tiny silent source directly
+  // inside the user's tap gesture to unlock later scheduled Web Audio.
+  function unlockAudioFromGesture(){
+    const ctx=getAudioCtx();
+    if(!ctx) return null;
+
+    try{
+      if(ctx.state==="suspended"){
+        const p=ctx.resume();
+        if(p && typeof p.catch==="function") p.catch(()=>{});
+      }
+
+      const buffer=ctx.createBuffer(1,1,ctx.sampleRate||44100);
+      const src=ctx.createBufferSource();
+      src.buffer=buffer;
+      src.connect(ctx.destination);
+      src.start(0);
+    }catch(_){}
+
+    // Begin sample loading while we are still responding to the user gesture.
+    try{ loadGuitarSamples(ctx).catch(()=>{}); }catch(_){}
+    return ctx;
+  }
+
+  function playFallbackMidi(midi,volume=.11,duration=.46){
+    const ctx=getAudioCtx();
+    if(!ctx || ctx.state!=="running") return false;
+
+    const now=ctx.currentTime+.004;
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    const freq=440*Math.pow(2,(midi-69)/12);
+
+    osc.type="triangle";
+    osc.frequency.setValueAtTime(freq,now);
+
+    const peak=Math.max(.015,Math.min(.16,volume*.65));
+    const noteDuration=Math.max(.12,duration||.46);
+
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(peak,now+.008);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+noteDuration);
+
+    osc.connect(gain);
+    gain.connect(guitarMasterGain||ctx.destination);
+    osc.start(now);
+    osc.stop(now+noteDuration+.02);
+    return true;
+  }
+
   function ensureAudioReady(callback){
     const ctx=getAudioCtx();
     if(!ctx) return;
@@ -825,10 +877,20 @@ body.player .playerOnly{display:grid}
 
   function playSampledMidi(midi,volume=.20,duration=.72){
     const ctx=getAudioCtx();
-    if(!ctx || ctx.state!=="running") return false;
+    if(!ctx) return false;
+
+    if(ctx.state!=="running"){
+      try{
+        const p=ctx.resume();
+        if(p && typeof p.catch==="function") p.catch(()=>{});
+      }catch(_){}
+      return false;
+    }
 
     const pick=nearestGuitarSample(midi);
-    if(!pick) return false;
+    // If the guitar WAVs are unavailable (common in some iPhone preview
+    // environments), use a built-in Web Audio tone rather than going silent.
+    if(!pick) return playFallbackMidi(midi,volume,duration);
 
     const now=ctx.currentTime+.005;
     const src=ctx.createBufferSource();
@@ -893,8 +955,10 @@ body.player .playerOnly{display:grid}
 
   // Circle primes sample loading on the very first user gesture.
   function primeAudioSamples(){
-    ensureAudioReady(ctx=>{
-      loadGuitarSamples(ctx).catch(()=>{});
+    const ctx=unlockAudioFromGesture();
+    if(!ctx) return;
+    ensureAudioReady(readyCtx=>{
+      loadGuitarSamples(readyCtx).catch(()=>{});
     });
   }
 
@@ -1273,6 +1337,8 @@ body.player .playerOnly{display:grid}
     drawFingerPose(S.fingerPose,true);
     progressFill.style.width='0%';
 
+    // bindTap has already unlocked iOS Web Audio synchronously.
+    // Here we simply finish/attempt sample loading; oscillator fallback remains available.
     await unlockSampleAudio();
     if(run!==S.runId) return;
 
@@ -1306,12 +1372,19 @@ body.player .playerOnly{display:grid}
   function bindTap(el,fn){
     let pointer=false;
     el.addEventListener('pointerup',e=>{
-      pointer=true;e.preventDefault();e.stopPropagation();fn();
+      pointer=true;
+      e.preventDefault();
+      e.stopPropagation();
+      unlockAudioFromGesture();
+      fn();
       setTimeout(()=>pointer=false,250);
     },{passive:false});
     el.addEventListener('click',e=>{
       if(pointer)return;
-      e.preventDefault();e.stopPropagation();fn();
+      e.preventDefault();
+      e.stopPropagation();
+      unlockAudioFromGesture();
+      fn();
     });
   }
 
