@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Solo Lesson Builder 0.21 — Local Editing and Movement Cues</title>
+<title>Solo Lesson Builder 0.47 — Persistent Editable Fingering</title>
 <style>
 :root{
   /* Exact Guit-Map geometry */
@@ -257,6 +257,45 @@ button,select{font:inherit}
   box-shadow:0 0 12px rgba(255,20,147,.62),0 3px 8px rgba(0,0,0,.42);
 }
 
+.articulationSpark{
+  position:absolute;
+  width:1px;
+  height:1px;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  z-index:48;
+}
+.articulationSpark .sparkRay{
+  position:absolute;
+  left:0;
+  top:0;
+  width:2px;
+  height:10px;
+  border-radius:999px;
+  background:#fff;
+  box-shadow:0 0 5px rgba(255,255,255,.95);
+  transform-origin:50% 0%;
+  opacity:0;
+  animation:articulationFireworkRay 230ms ease-out forwards;
+}
+@keyframes articulationFireworkRay{
+  0%{
+    opacity:0;
+    transform:rotate(var(--angle)) translateY(-7px) scaleY(.20);
+  }
+  15%{
+    opacity:1;
+  }
+  55%{
+    opacity:1;
+    transform:rotate(var(--angle)) translateY(-17px) scaleY(1);
+  }
+  100%{
+    opacity:0;
+    transform:rotate(var(--angle)) translateY(-23px) scaleY(.55);
+  }
+}
+
 
 /* Fingering playback layer — first integrated from the standalone prototype */
 #fingerLayer{
@@ -323,48 +362,51 @@ body.player.fingeringPlayback #fingerLayer{display:block}
   z-index:59;
   pointer-events:none;
 }
-#fingerAssignPopup{
+#fingerAssignPopup{display:none !important}
+#fingerAssignMovement{display:none !important}
+
+.fingerAssignCue{
   position:absolute;
-  display:none;
-  width:88px;
-  padding:6px;
-  gap:4px;
-  border-radius:10px;
-  border:1px solid rgba(255,20,147,.48);
-  background:rgba(9,14,22,.78);
-  -webkit-backdrop-filter:blur(7px) saturate(110%);
-  backdrop-filter:blur(7px) saturate(110%);
-  box-shadow:0 7px 22px rgba(0,0,0,.42);
-  z-index:61;
-}
-#fingerAssignMovement{
-  min-height:20px;
+  width:15px;
+  height:15px;
+  border-radius:50%;
+  transform:translate(6px,-18px);
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:2px 5px 4px;
-  border-bottom:1px solid rgba(255,255,255,.11);
-  color:#ff78bf;
+  background:#fff;
+  color:#000;
+  border:1px solid rgba(0,0,0,.42);
+  box-shadow:0 0 5px rgba(255,255,255,.36),0 2px 5px rgba(0,0,0,.48);
   font-size:9px;
-  line-height:1.05;
+  line-height:1;
   font-weight:900;
-  letter-spacing:.055em;
-  text-align:center;
-  text-transform:uppercase;
+  z-index:61;
+  pointer-events:none;
 }
-#fingerAssignPopup button{
-  width:100%;
-  height:27px;
-  border-radius:6px;
-  border:1px solid rgba(255,255,255,.13);
-  background:rgba(24,34,48,.78);
-  color:#f4f7fb;
-  font-size:9px;
-  font-weight:800;
-  text-align:left;
-  padding:0 7px;
+
+body.fingeringAssignMode #fingerLayer{
+  display:block;
+  pointer-events:auto;
+  z-index:58;
 }
-#fingerAssignPopup button:active{transform:translateY(1px)}
+body.fingeringAssignMode .fingerRect{
+  pointer-events:auto;
+  cursor:pointer;
+  opacity:.66;
+  border-color:rgba(255,255,255,.40);
+}
+body.fingeringAssignMode .fingerRect:hover{
+  opacity:.82;
+}
+body.fingeringAssignMode .fingerRect.assignmentChosen{
+  opacity:.82;
+  border-color:rgba(255,20,147,.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.48),
+    inset 0 -1px 0 rgba(255,255,255,.12),
+    0 0 13px rgba(255,20,147,.25);
+}
 
 .fingerRect{
   position:absolute;
@@ -652,6 +694,257 @@ body.player.fingeringPlayback #fingerLayer{display:block}
 .playerOnly{display:none}
 body.player .adminOnly{display:none!important}
 body.player .playerOnly{display:grid}
+
+/* === 0.35 reusable clip prototype === */
+
+/* Open strings are phantom positions: colored rings, never solid finger dots. */
+.frameworkMark.openPhantom.in{
+  background:transparent;
+  color:transparent;
+  border:4px solid var(--green);
+  box-shadow:0 0 10px rgba(33,240,125,.42),0 3px 8px rgba(0,0,0,.4);
+}
+.frameworkMark.openPhantom.out{
+  background:transparent;
+  color:transparent;
+  border:4px solid var(--red);
+  box-shadow:0 0 10px rgba(255,77,93,.42),0 3px 8px rgba(0,0,0,.4);
+}
+.fingerMark.openPhantom{
+  background:transparent;
+  color:transparent;
+  border:4px solid var(--pink);
+  box-shadow:0 0 12px rgba(255,20,147,.62),0 3px 8px rgba(0,0,0,.42);
+}
+
+.playerClipControls{
+  display:none;
+  gap:7px;
+  width:100%;
+}
+body.player .playerClipControls{
+  display:grid;
+}
+.playerClipControls .action,
+.playerClipControls .clipKeyBtn{
+  width:100%;
+}
+
+.clipKeyWrap{
+  position:relative;
+  width:100%;
+}
+.clipKeyBtn{
+  min-height:36px;
+  border-radius:10px;
+  border:1px solid rgba(210,226,255,.18);
+  background:linear-gradient(180deg,rgba(33,44,63,.96),rgba(16,23,35,.96));
+  color:var(--text);
+  font-weight:800;
+  cursor:pointer;
+}
+.clipKeyMenu{
+  display:none;
+  position:absolute;
+  left:0;
+  top:calc(100% + 5px);
+  width:100%;
+  padding:6px;
+  border-radius:12px;
+  background:rgba(12,18,28,.98);
+  border:1px solid rgba(112,178,255,.45);
+  box-shadow:0 14px 34px rgba(0,0,0,.5);
+  z-index:200;
+  gap:5px;
+}
+.clipKeyMenu.on{
+  display:grid;
+}
+.clipKeyChoice{
+  min-height:30px;
+  border:1px solid rgba(210,226,255,.13);
+  border-radius:8px;
+  background:rgba(26,36,52,.96);
+  color:var(--text);
+  font-weight:750;
+  cursor:pointer;
+}
+.clipKeyChoice.on{
+  border-color:rgba(255,20,147,.76);
+  box-shadow:inset 0 0 0 1px rgba(255,20,147,.35);
+}
+
+.clipDialog{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.48);
+  z-index:1000;
+  padding:20px;
+}
+.clipDialog.on{
+  display:flex;
+}
+.clipDialogCard{
+  width:min(360px,calc(100vw - 40px));
+  border-radius:18px;
+  background:linear-gradient(180deg,#1d2839,#101722);
+  border:1px solid rgba(112,178,255,.55);
+  box-shadow:0 28px 80px rgba(0,0,0,.64);
+  padding:18px;
+}
+.clipDialogTitle{
+  font-size:17px;
+  font-weight:900;
+  margin-bottom:8px;
+}
+.clipDialogText{
+  font-size:13px;
+  line-height:1.4;
+  color:var(--text-muted);
+  margin-bottom:14px;
+}
+.clipDialogActions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.clipDialogActions button{
+  min-height:38px;
+  border-radius:10px;
+  border:1px solid rgba(210,226,255,.18);
+  background:linear-gradient(180deg,rgba(34,46,66,.98),rgba(17,24,36,.98));
+  color:var(--text);
+  font-weight:800;
+  cursor:pointer;
+}
+.clipDialogActions .primary{
+  border-color:rgba(255,20,147,.70);
+}
+
+.clipVariantTag{
+  display:none;
+  font-size:10px;
+  line-height:1.1;
+  text-align:center;
+  color:var(--text-muted);
+  margin-top:2px;
+}
+body.player .clipVariantTag{
+  display:block;
+}
+
+
+#fingerAssignMark.openPhantom{
+  background:transparent!important;
+  color:transparent!important;
+  border:4px solid var(--pink)!important;
+  box-shadow:0 0 12px rgba(255,20,147,.62),0 3px 8px rgba(0,0,0,.42)!important;
+}
+
+
+/* === 0.37 chord integration === */
+#chordBtn.ready{
+  border-color:rgba(255,20,147,.68);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,20,147,.22),
+    0 0 9px rgba(255,20,147,.12);
+}
+#chordBtn:disabled{
+  opacity:.38;
+  cursor:default;
+}
+.chordBarreLine{
+  position:absolute;
+  height:10px;
+  border-radius:999px;
+  transform:translateY(-50%);
+  background:rgba(255,20,147,.88);
+  box-shadow:
+    0 0 12px rgba(255,20,147,.45),
+    0 2px 8px rgba(0,0,0,.34);
+  pointer-events:none;
+  z-index:28;
+}
+.chordConfirmPulse{
+  animation:chordConfirmPulse .42s ease-out;
+}
+@keyframes chordConfirmPulse{
+  0%{filter:brightness(1)}
+  45%{filter:brightness(1.85)}
+  100%{filter:brightness(1)}
+}
+
+
+/* === 0.38 prototype-style chord fingering === */
+.fingerMark.chordUnassigned{
+  background:var(--green);
+  color:white;
+  border:0;
+  box-shadow:0 0 10px rgba(33,240,125,.42),0 3px 8px rgba(0,0,0,.4);
+}
+.fingerMark.chordSelected{
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,.96),
+    0 0 16px rgba(255,20,147,.72),
+    0 3px 8px rgba(0,0,0,.45);
+}
+body.fingeringAssignMode.chordSelectingNote .fingerRect{
+  pointer-events:none !important;
+  opacity:.38 !important;
+}
+body.fingeringAssignMode.chordChoosingFinger .fingerRect{
+  pointer-events:auto;
+}
+body.fingeringAssignMode #fingerLayer{
+  /* Let fretboard taps pass through the empty parts of the finger layer. */
+  pointer-events:none;
+}
+body.fingeringAssignMode .fingerRect{
+  pointer-events:auto;
+}
+
+
+/* === 0.42 chord finger touch capture === */
+/* In chord finger-choice mode, transformed finger rectangles are visual only.
+   A document-level capture listener resolves the tap against their geometry. */
+body.fingeringAssignMode.chordChoosingFinger .fingerRect{
+  pointer-events:none !important;
+}
+
+
+/* === 0.44 strict two-step chord assignment === */
+
+/* Step 1: choosing a chord NOTE.
+   Finger graphics must never steal the note tap, even when visually on top. */
+body.fingeringAssignMode.chordSelectingNote .fingerRect{
+  pointer-events:none !important;
+}
+
+/* Step 2: choosing a FINGER.
+   Chord fingers are still resolved by document-level geometric hit testing,
+   so the transformed rectangles themselves remain visual only. */
+body.fingeringAssignMode.chordChoosingFinger .fingerRect{
+  pointer-events:none !important;
+}
+
+
+/* === 0.47 persistent editable fingering === */
+.event.fingeringTargetRow{
+  box-shadow:inset 2px 0 0 rgba(255,20,147,.28);
+}
+.event.fingeringTargetRow.selected{
+  box-shadow:
+    inset 2px 0 0 rgba(112,178,255,.92),
+    inset 4px 0 0 rgba(255,20,147,.32);
+}
+
+#fingeringConfirmDialog .clipDialogCard{
+  width:min(350px,calc(100vw - 40px));
+}
+
 </style>
 </head>
 <body>
@@ -688,6 +981,7 @@ body.player .playerOnly{display:grid}
           <button class="moveBtn" data-move="hammer-on">Hammer-on</button>
           <button class="moveBtn" data-move="pull-off">Pull-off</button>
           <button class="moveBtn" data-move="slide">Slide</button>
+          <button id="chordBtn" class="moveBtn" data-move="chord" disabled>Chord</button>
         </div>
       </div>
 
@@ -713,6 +1007,21 @@ body.player .playerOnly{display:grid}
         <button id="stopBtn" class="action">Stop</button>
       </div>
       <div class="progress playerOnly"><div id="progressFill" class="progressFill"></div></div>
+
+      <div class="playerClipControls">
+        <div class="sidebarSeparator"></div>
+        <div class="sectionLabel">Clip</div>
+
+        <div class="clipKeyWrap">
+          <button id="playerKeyBtn" class="clipKeyBtn" type="button">Key: C/Am</button>
+          <div id="playerKeyMenu" class="clipKeyMenu"></div>
+        </div>
+        <div id="clipVariantTag" class="clipVariantTag">Original position</div>
+
+        <button id="createOpenBtn" class="action" type="button">Create Open String Version</button>
+        <button id="approveClipBtn" class="action" type="button">Approve Clip</button>
+        <button id="recallClipBtn" class="action" type="button">Recall</button>
+      </div>
     </div>
 
     <div class="maincol">
@@ -723,19 +1032,15 @@ body.player .playerOnly{display:grid}
           <div id="board" class="board"></div>
           <svg id="moveSvg" class="movementSvg"></svg>
           <div id="fingerLayer">
-            <div id="fingerRect0" class="fingerRect"></div>
-            <div id="fingerRect1" class="fingerRect"></div>
-            <div id="fingerRect2" class="fingerRect"></div>
-            <div id="fingerRect3" class="fingerRect"></div>
+            <div id="fingerRect0" class="fingerRect" data-finger-choice="I"></div>
+            <div id="fingerRect1" class="fingerRect" data-finger-choice="M"></div>
+            <div id="fingerRect2" class="fingerRect" data-finger-choice="R"></div>
+            <div id="fingerRect3" class="fingerRect" data-finger-choice="P"></div>
           </div>
           <div id="fingerAssignMark"></div>
           <div id="fingerAssignDestinationMark"></div>
-          <div id="fingerAssignPopup">
-            <div id="fingerAssignMovement">Pluck</div>
-            <button data-finger-choice="I">Index</button>
-            <button data-finger-choice="M">Middle</button>
-            <button data-finger-choice="R">Ring</button>
-            <button data-finger-choice="P">Pinky</button>
+          <div id="fingerAssignPopup" aria-hidden="true">
+            <div id="fingerAssignMovement"></div>
           </div>
         </div>
       </div>
@@ -743,9 +1048,38 @@ body.player .playerOnly{display:grid}
   </div>
 </div>
 
+<div id="clipDialog" class="clipDialog" aria-hidden="true">
+  <div class="clipDialogCard">
+    <div id="clipDialogTitle" class="clipDialogTitle">Open-string version required</div>
+    <div id="clipDialogText" class="clipDialogText">
+      You must include an open-string version before this clip can be approved.
+    </div>
+    <div class="clipDialogActions">
+      <button id="clipDialogCancel" type="button">Cancel</button>
+      <button id="clipDialogPrimary" class="primary" type="button">Create Open String Version</button>
+    </div>
+  </div>
+</div>
+
+<div id="fingeringConfirmDialog" class="clipDialog" aria-hidden="true">
+  <div class="clipDialogCard">
+    <div class="clipDialogTitle">Confirm chord fingering</div>
+    <div class="clipDialogText">
+      Check the completed hand shape. Continue to accept this chord fingering,
+      or keep editing to change an assignment or use Undo.
+    </div>
+    <div class="clipDialogActions">
+      <button id="fingeringConfirmEdit" type="button">Keep Editing</button>
+      <button id="fingeringConfirmContinue" class="primary" type="button">Continue</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
   const TOTAL_FRETS=15;
+  const REST_CIRCLE_GAP=5;
+  const MIN_DOWNWARD_DROP=8;
   const TUNING=[40,45,50,55,59,64];
   const NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const KEYS=[
@@ -764,10 +1098,25 @@ body.player .playerOnly{display:grid}
   const progressFill=document.getElementById('progressFill');
   const fingerRects=[0,1,2,3].map(i=>document.getElementById('fingerRect'+i));
   const fingeringBtn=document.getElementById('fingeringBtn');
+  const chordBtn=document.getElementById('chordBtn');
   const fingerAssignMark=document.getElementById('fingerAssignMark');
   const fingerAssignDestinationMark=document.getElementById('fingerAssignDestinationMark');
   const fingerAssignPopup=document.getElementById('fingerAssignPopup');
   const fingerAssignMovement=document.getElementById('fingerAssignMovement');
+  const playerKeyBtn=document.getElementById('playerKeyBtn');
+  const playerKeyMenu=document.getElementById('playerKeyMenu');
+  const clipVariantTag=document.getElementById('clipVariantTag');
+  const createOpenBtn=document.getElementById('createOpenBtn');
+  const approveClipBtn=document.getElementById('approveClipBtn');
+  const recallClipBtn=document.getElementById('recallClipBtn');
+  const clipDialog=document.getElementById('clipDialog');
+  const clipDialogTitle=document.getElementById('clipDialogTitle');
+  const clipDialogText=document.getElementById('clipDialogText');
+  const clipDialogCancel=document.getElementById('clipDialogCancel');
+  const clipDialogPrimary=document.getElementById('clipDialogPrimary');
+  const fingeringConfirmDialog=document.getElementById('fingeringConfirmDialog');
+  const fingeringConfirmEdit=document.getElementById('fingeringConfirmEdit');
+  const fingeringConfirmContinue=document.getElementById('fingeringConfirmContinue');
   let fingerAssignFlashTimer=null;
 
   const S={
@@ -780,18 +1129,46 @@ body.player .playerOnly{display:grid}
     runId:0,
     timer:null,
     nextBendId:1,
+    nextChordId:1,
     previewEventIndex:null,
     audioUnlocked:false,
     fingerPose:null,
     useAssignedFingering:false,
+
+    // Reusable clip prototype. Admin edits one authored variant at a time.
+    clipDraft:{
+      editingVariant:'original',
+      original:null,
+      open:null,
+      openShift:null
+    },
+    playerKeyPc:0,
+    playerVariant:'original',
+    approvedClip:null,
+
     fingeringAssign:{
       active:false,
       targets:[],
-      cursor:0
+      cursor:0,
+      selectedChordNoteIndex:null,
+      assignmentHistory:[],
+      completedChordReviewEventIndex:null,
+      confirmingChordEventIndex:null
     }
   };
 
   const FINGER_LETTERS=['I','M','R','P'];
+
+  // Exact line segments currently drawn for chord-assignment fingers.
+  // Chord finger taps are resolved geometrically against these shapes,
+  // rather than relying on Safari's transformed-element hit testing.
+  let chordFingerHitGeometry=[];
+
+  // Safari/iOS commonly emits a synthetic click after pointerup. When the
+  // pointerup selected a chord note, suppress exactly that follow-up click so
+  // one physical tap can never perform both steps of chord assignment.
+  let suppressChordFingerSyntheticClick=false;
+  let suppressChordFingerSyntheticClickTimer=null;
 
   function fingerIndex(value){
     if(Number.isInteger(value) && value>=0 && value<4) return value;
@@ -1137,20 +1514,37 @@ body.player .playerOnly{display:grid}
 
     const now=ctx.currentTime+.002;
 
-    // Short low finger/fretboard thump.
+    // Deeper finger/fretboard thump.
     const thump=ctx.createOscillator();
     const tg=ctx.createGain();
     thump.type='sine';
-    thump.frequency.setValueAtTime(115,now);
-    thump.frequency.exponentialRampToValueAtTime(72,now+.045);
+    thump.frequency.setValueAtTime(88,now);
+    thump.frequency.exponentialRampToValueAtTime(54,now+.060);
     tg.gain.setValueAtTime(.0001,now);
-    tg.gain.exponentialRampToValueAtTime(.070,now+.004);
-    tg.gain.exponentialRampToValueAtTime(.0001,now+.060);
+    tg.gain.exponentialRampToValueAtTime(.086,now+.004);
+    tg.gain.exponentialRampToValueAtTime(.0001,now+.078);
     thump.connect(tg);
     tg.connect(guitarMasterGain||ctx.destination);
     thump.start(now);
-    thump.stop(now+.065);
+    thump.stop(now+.085);
     trackArticulationSource(thump,tg);
+
+    // Mild fret/string click layered above the thump.
+    const click=ctx.createBufferSource();
+    const bp=ctx.createBiquadFilter();
+    const cg=ctx.createGain();
+    click.buffer=makeNoiseBuffer(ctx,.030);
+    bp.type='bandpass';
+    bp.frequency.value=2850;
+    bp.Q.value=1.6;
+    cg.gain.setValueAtTime(.0001,now);
+    cg.gain.exponentialRampToValueAtTime(.020,now+.0015);
+    cg.gain.exponentialRampToValueAtTime(.0001,now+.020);
+    click.connect(bp);
+    bp.connect(cg);
+    cg.connect(guitarMasterGain||ctx.destination);
+    click.start(now);
+    trackArticulationSource(click,cg);
 
     // Small high-frequency string snap.
     const noise=ctx.createBufferSource();
@@ -1160,13 +1554,41 @@ body.player .playerOnly{display:grid}
     hp.type='highpass';
     hp.frequency.value=1700;
     ng.gain.setValueAtTime(.0001,now);
-    ng.gain.exponentialRampToValueAtTime(.026,now+.002);
+    ng.gain.exponentialRampToValueAtTime(.022,now+.002);
     ng.gain.exponentialRampToValueAtTime(.0001,now+.035);
     noise.connect(hp);
     hp.connect(ng);
     ng.connect(guitarMasterGain||ctx.destination);
     noise.start(now);
     trackArticulationSource(noise,ng);
+  }
+
+  function playPullOffClick(){
+    const ctx=getAudioCtx();
+    if(!ctx || ctx.state!=="running") return;
+
+    const now=ctx.currentTime+.002;
+
+    // Short, dry release click: slightly lower and more tactile than the
+    // hammer-on click so it reads as the finger/string letting go.
+    const click=ctx.createBufferSource();
+    const bp=ctx.createBiquadFilter();
+    const gain=ctx.createGain();
+
+    click.buffer=makeNoiseBuffer(ctx,.036);
+    bp.type='bandpass';
+    bp.frequency.value=2200;
+    bp.Q.value=1.8;
+
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.030,now+.0015);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+.026);
+
+    click.connect(bp);
+    bp.connect(gain);
+    gain.connect(guitarMasterGain||ctx.destination);
+    click.start(now);
+    trackArticulationSource(click,gain);
   }
 
   function playSlideSqueak(){
@@ -1375,7 +1797,34 @@ body.player .playerOnly{display:grid}
     activeBendAudio=null;
   }
 
+  function showArticulationSpark(pos){
+    if(!pos) return;
+
+    const host=pos.f===0?orow:bd;
+    const spark=document.createElement('div');
+    spark.className='articulationSpark';
+
+    // Eight white rays burst outward beyond the normal finger-position
+    // circumference, then disappear like a miniature firework.
+    for(let i=0;i<8;i++){
+      const ray=document.createElement('span');
+      ray.className='sparkRay';
+      ray.style.setProperty('--angle',(i*45)+'deg');
+      spark.appendChild(ray);
+    }
+
+    spark.style.left=stringXs()[pos.s]+'px';
+    spark.style.top=(pos.f===0?32:yForFret(pos.f))+'px';
+
+    host.appendChild(spark);
+    setTimeout(()=>{
+      if(spark && spark.parentNode) spark.remove();
+    },250);
+  }
+
   function playHammerOnArticulation(e){
+    // Hammer-on contact occurs at the destination fret.
+    showArticulationSpark(e.to);
     playHammerImpact();
     playArticulatedMidi(midiAt(e.to.s,e.to.f),{
       volume:.128,
@@ -1385,7 +1834,14 @@ body.player .playerOnly{display:grid}
     });
   }
 
-  function playPullOffArticulation(e){
+  function playPullOffRelease(e){
+    // The visible/audible release happens at the originating fret.
+    showArticulationSpark(e.from);
+    playPullOffClick();
+  }
+
+  function playPullOffResult(e){
+    // The lower note speaks only after the pink dot has reached its destination.
     playArticulatedMidi(midiAt(e.to.s,e.to.f),{
       volume:.112,
       duration:.54,
@@ -1440,6 +1896,295 @@ body.player .playerOnly{display:grid}
   },{once:true});
 
   function clonePos(p){return p?{s:p.s,f:p.f}:null}
+  function cloneEvents(events){
+    return JSON.parse(JSON.stringify(events || []));
+  }
+
+  function mod12(n){
+    return ((n%12)+12)%12;
+  }
+
+  function keyLabelForPc(pc){
+    const found=KEYS.find(([,value])=>Number(value)===mod12(pc));
+    return found?found[0]:NAMES[mod12(pc)];
+  }
+
+  function eachEventPosition(e,fn){
+    if(!e || typeof fn!=='function') return;
+
+    if(Number.isFinite(e.f) && Number.isInteger(e.s)){
+      fn(e,'f');
+    }
+
+    for(const prop of ['from','to','bendHome']){
+      const p=e[prop];
+      if(p && Number.isFinite(p.f) && Number.isInteger(p.s)){
+        fn(p,'f');
+      }
+    }
+
+    if(e.type==='chord' && Array.isArray(e.notes)){
+      for(const note of e.notes){
+        if(note && Number.isFinite(note.f) && Number.isInteger(note.s)){
+          fn(note,'f');
+        }
+      }
+    }
+  }
+
+  function lowestFretInEvents(events){
+    let min=Infinity;
+    for(const e of events || []){
+      eachEventPosition(e,p=>{
+        min=Math.min(min,p.f);
+      });
+    }
+    return Number.isFinite(min)?min:0;
+  }
+
+  function highestFretInEvents(events){
+    let max=-Infinity;
+    for(const e of events || []){
+      eachEventPosition(e,p=>{
+        max=Math.max(max,p.f);
+      });
+    }
+    return Number.isFinite(max)?max:0;
+  }
+
+  function shiftEventsByFrets(events,delta){
+    const shifted=cloneEvents(events);
+    for(const e of shifted){
+      eachEventPosition(e,p=>{
+        p.f+=delta;
+      });
+    }
+    return shifted;
+  }
+
+  function clearFingerAssignmentsInEvents(events){
+    for(const e of events || []){
+      if(e.type==='fingerOn'){
+        delete e.finger;
+      }else if(e.type==='move'){
+        delete e.finger;
+        delete e.fromFinger;
+        delete e.toFinger;
+      }else if(e.type==='chord' && Array.isArray(e.notes)){
+        e.notes.forEach(note=>delete note.finger);
+      }
+    }
+    return events;
+  }
+
+  function snapshotVariantFromAdmin(){
+    const variant=S.clipDraft.editingVariant;
+    const packet={
+      keyPc:mod12(S.keyPc),
+      events:cloneEvents(S.events)
+    };
+
+    S.clipDraft[variant]=packet;
+
+    if(variant==='original'){
+      const min=lowestFretInEvents(packet.events);
+      S.clipDraft.openShift=min;
+    }
+
+    return packet;
+  }
+
+  function restoreEditingVariantToAdmin(){
+    const variant=S.clipDraft.editingVariant;
+    const packet=S.clipDraft[variant];
+    if(!packet) return false;
+
+    S.events=cloneEvents(packet.events);
+    S.keyPc=mod12(packet.keyPc);
+    keySel.value=String(S.keyPc);
+    rebuildAuthor();
+    return true;
+  }
+
+  function openVariantKeyPc(){
+    if(S.clipDraft.open) return mod12(S.clipDraft.open.keyPc);
+    if(!S.clipDraft.original) return null;
+    const shift=Number.isFinite(S.clipDraft.openShift)
+      ? S.clipDraft.openShift
+      : lowestFretInEvents(S.clipDraft.original.events);
+    return mod12(S.clipDraft.original.keyPc-shift);
+  }
+
+  function chooseMovableDelta(events,sourceKeyPc,targetKeyPc){
+    const min=lowestFretInEvents(events);
+    const max=highestFretInEvents(events);
+    const residue=mod12(targetKeyPc-sourceKeyPc);
+    const candidates=[];
+
+    for(let k=-3;k<=3;k++){
+      const delta=residue+12*k;
+      const low=min+delta;
+      const high=max+delta;
+
+      // Movable form intentionally stays fretted. The exact open-position key
+      // is handled by the separately authored open variant.
+      if(low>=1 && high<=TOTAL_FRETS){
+        candidates.push(delta);
+      }
+    }
+
+    if(!candidates.length) return null;
+    candidates.sort((a,b)=>Math.abs(a)-Math.abs(b) || a-b);
+    return candidates[0];
+  }
+
+  function eventsForPlayerKey(targetKeyPc){
+    const original=S.clipDraft.original;
+    if(!original){
+      return {
+        events:cloneEvents(S.events),
+        variant:'original',
+        delta:0
+      };
+    }
+
+    const source=mod12(original.keyPc);
+    const target=mod12(targetKeyPc);
+    const openKey=openVariantKeyPc();
+
+    // Default/source key ALWAYS shows the authored original position.
+    if(target===source){
+      return {
+        events:cloneEvents(original.events),
+        variant:'original',
+        delta:0
+      };
+    }
+
+    // The authored open-string form is used only after the user has changed
+    // key to the specific key corresponding to that open position.
+    if(S.clipDraft.open && openKey!==null && target===openKey){
+      return {
+        events:cloneEvents(S.clipDraft.open.events),
+        variant:'open',
+        delta:0
+      };
+    }
+
+    const delta=chooseMovableDelta(original.events,source,target);
+    if(delta===null){
+      return {
+        error:'That transposition does not fit on the current 15-fret display.'
+      };
+    }
+
+    return {
+      events:shiftEventsByFrets(original.events,delta),
+      variant:'transposed',
+      delta
+    };
+  }
+
+  function loadPlayerKey(targetKeyPc,{quiet=false}={}){
+    const result=eventsForPlayerKey(targetKeyPc);
+    if(result.error){
+      if(!quiet) announce(result.error,false);
+      return false;
+    }
+
+    stopPlayback(false);
+
+    S.playerKeyPc=mod12(targetKeyPc);
+    S.playerVariant=result.variant;
+    S.events=cloneEvents(result.events);
+    S.keyPc=S.playerKeyPc;
+
+    playerKeyBtn.textContent='Key: '+keyLabelForPc(S.playerKeyPc);
+    playerKeyMenu.querySelectorAll('.clipKeyChoice').forEach(btn=>{
+      btn.classList.toggle('on',Number(btn.dataset.pc)===S.playerKeyPc);
+    });
+
+    if(result.variant==='open'){
+      clipVariantTag.textContent='Open-string version';
+    }else if(result.variant==='transposed'){
+      const sign=result.delta>0?'+':'';
+      clipVariantTag.textContent=`Movable version (${sign}${result.delta} frets)`;
+    }else{
+      clipVariantTag.textContent='Original position';
+    }
+
+    S.playback=initialPlayerFrameworkState();
+    renderPlayback();
+    progressFill.style.width='0%';
+
+    if(!quiet){
+      statusEl.innerHTML=`<strong>${keyLabelForPc(S.playerKeyPc)}</strong><br>${clipVariantTag.textContent}`;
+    }
+    return true;
+  }
+
+  function variantRequiresFinger(e){
+    if(!e || e.play===false) return false;
+
+    if(e.type==='fingerOn'){
+      return e.f>0;
+    }
+
+    if(e.type==='chord'){
+      return Array.isArray(e.notes) && e.notes.some(note=>note.f>0);
+    }
+
+    if(e.type==='move'){
+      if(e.movement==='hammer-on'){
+        return !!(e.to && e.to.f>0);
+      }
+      if(e.movement==='pull-off'){
+        return !!(e.to && e.to.f>0);
+      }
+      if(e.movement==='slide' || e.movement==='bend'){
+        return false;
+      }
+    }
+
+    return false;
+  }
+
+  function variantFingeringComplete(events){
+    const ev=events || [];
+    for(const e of ev){
+      if(e.play===false) continue;
+
+      if(e.type==='chord'){
+        for(const note of e.notes || []){
+          if(note.f>0 && !validFingerLetter(note.finger)) return false;
+        }
+        continue;
+      }
+
+      if(!variantRequiresFinger(e)) continue;
+      if(!validFingerLetter(e.finger)) return false;
+    }
+    return true;
+  }
+
+  function buildApprovedClipPacket(){
+    return {
+      format:'guitar-animation-clip',
+      version:1,
+      sourceKeyPc:mod12(S.clipDraft.original.keyPc),
+      openKeyPc:mod12(S.clipDraft.open.keyPc),
+      openShift:S.clipDraft.openShift,
+      original:{
+        keyPc:mod12(S.clipDraft.original.keyPc),
+        events:cloneEvents(S.clipDraft.original.events)
+      },
+      open:{
+        keyPc:mod12(S.clipDraft.open.keyPc),
+        events:cloneEvents(S.clipDraft.open.events)
+      }
+    };
+  }
+
   function posKey(s,f){return `${s}:${f}`}
   function fretY(f){return f/TOTAL_FRETS*bd.clientHeight}
   function stringXs(){const w=bd.clientWidth,m=14,u=w-m*2;return Array.from({length:6},(_,i)=>m+u*i/5)}
@@ -1472,6 +2217,375 @@ body.player .playerOnly{display:grid}
 
   function fingerRectThickness(){
     return Math.max(14,Math.abs(yForFret(6)-yForFret(5))*.92);
+  }
+
+  function chordAssignmentsForFinger(assignments,finger){
+    return assignments
+      .filter(n=>n.f>0 && fingerIndex(n.finger)===finger)
+      .sort((a,b)=>a.f-b.f || a.s-b.s);
+  }
+
+  function chordBarreBaseReleaseForSpan(span){
+    const releaseBySpan={2:.20,3:.40,4:.62,5:.85,6:1};
+    return releaseBySpan[Math.max(2,Math.min(6,span))] ?? 0;
+  }
+
+  function chordBarreInfo(assignments,finger){
+    const assigned=chordAssignmentsForFinger(assignments,finger);
+    if(assigned.length<2) return null;
+    if(!assigned.every(n=>n.f===assigned[0].f)) return null;
+
+    const pts=assigned
+      .map(note=>({note,p:shellPoint(note.s,note.f)}))
+      .sort((a,b)=>a.p.x-b.p.x);
+
+    const strings=assigned.map(n=>n.s);
+    const span=Math.max(...strings)-Math.min(...strings)+1;
+    const release=chordBarreBaseReleaseForSpan(span);
+
+    return {
+      finger,
+      count:assigned.length,
+      span,
+      fret:assigned[0].f,
+      release,
+      full:span===6,
+      farNote:pts[0].note,
+      nearNote:pts[pts.length-1].note,
+      x1:pts[0].p.x,
+      x2:pts[pts.length-1].p.x,
+      y:pts[0].p.y
+    };
+  }
+
+  function chordDefaultBaseFret(assignments){
+    const fretted=assignments.filter(n=>n.f>0 && validFingerLetter(n.finger));
+    if(!fretted.length) return 5;
+
+    if(fretted.length===1){
+      return clampFingerBase(fretted[0].f,fingerIndex(fretted[0].finger));
+    }
+
+    const avg=fretted.reduce((sum,n)=>sum+n.f,0)/fretted.length;
+    return Math.max(1,Math.min(TOTAL_FRETS-3,Math.round(avg-1.5)));
+  }
+
+  function chordSharedYOffset(assignments,baseFret){
+    const engaged=[0,1,2,3]
+      .filter(i=>chordAssignmentsForFinger(assignments,i).length>0);
+
+    if(engaged.length<2) return 0;
+
+    let maxAllowed=Infinity;
+
+    for(const finger of engaged){
+      const fa=chordAssignmentsForFinger(assignments,finger);
+      const barre=chordBarreInfo(assignments,finger);
+
+      // Successful prototype rule: full 6-string barre does not constrain
+      // the common base row.
+      if(barre && barre.full) continue;
+
+      const focus=barre ? barre.nearNote : fa[0];
+      const notePoint=shellPoint(focus.s,focus.f);
+      const laneFret=Math.max(1,Math.min(TOTAL_FRETS,baseFret+finger));
+      const rawBaseY=56+yForFret(laneFret);
+
+      const release=barre ? barre.release : 0;
+      const requiredDrop=MIN_DOWNWARD_DROP*(1-release);
+
+      maxAllowed=Math.min(
+        maxAllowed,
+        notePoint.y-requiredDrop-rawBaseY
+      );
+    }
+
+    return Number.isFinite(maxAllowed) ? Math.min(0,maxAllowed) : 0;
+  }
+
+  /*
+    Validated hand-geometry engine from Hand Geometry Engine Prototype 0.1.
+
+    Input:
+      [{s,f,finger}, ...]
+
+    Open strings use no finger and do not generate a physical finger.
+    Same-fret multiple assignments to one finger generate a barre.
+  */
+  function computeChordHandLayout(inputNotes){
+    const assignments=(inputNotes || [])
+      .filter(n=>
+        n &&
+        Number.isInteger(n.s) && n.s>=0 && n.s<6 &&
+        Number.isFinite(n.f) && n.f>=0 && n.f<=TOTAL_FRETS &&
+        (n.f===0 || validFingerLetter(n.finger))
+      )
+      .map(n=>({
+        s:n.s,
+        f:n.f,
+        finger:n.f===0?null:fingerIndex(n.finger)
+      }));
+
+    const baseFret=chordDefaultBaseFret(assignments);
+    const sharedYOffset=chordSharedYOffset(assignments,baseFret);
+    const thickness=fingerRectThickness();
+    const fixedBaseX=bd.clientWidth + REST_CIRCLE_GAP + thickness;
+
+    const fingers=[];
+    const barres=[];
+
+    for(let finger=0;finger<4;finger++){
+      const fa=chordAssignmentsForFinger(assignments,finger);
+      const laneFret=Math.max(1,Math.min(TOTAL_FRETS,baseFret+finger));
+      const rawBaseY=56+yForFret(laneFret)+sharedYOffset;
+
+      if(!fa.length){
+        const base={x:fixedBaseX,y:rawBaseY};
+        fingers.push({o:base,e:{...base},on:false});
+        continue;
+      }
+
+      const barre=chordBarreInfo(assignments,finger);
+      const focus=barre ? barre.farNote : fa[0];
+      const tip=shellPoint(focus.s,focus.f);
+
+      let baseY=rawBaseY;
+
+      if(barre){
+        baseY=
+          rawBaseY*(1-barre.release) +
+          tip.y*barre.release;
+
+        barres.push({
+          finger,
+          count:barre.count,
+          span:barre.span,
+          fret:barre.fret,
+          release:barre.release,
+          full:barre.full,
+          x1:barre.x1,
+          x2:barre.x2,
+          y:barre.y
+        });
+      }
+
+      fingers.push({
+        o:{x:fixedBaseX,y:baseY},
+        e:tip,
+        on:true
+      });
+    }
+
+    return {assignments,baseFret,sharedYOffset,fingers,barres};
+  }
+
+  function clearChordBarres(){
+    shell.querySelectorAll('.chordBarreLine').forEach(el=>el.remove());
+
+    /*
+      Do NOT clear chordFingerHitGeometry here. drawChordAssignmentHand()
+      records the four visible finger segments and then calls drawChordBarres().
+      Clearing the hit map from this visual cleanup routine made every chord
+      finger button unresponsive. The hit map is cleared only when the
+      fingering overlay/mode is actually left.
+    */
+  }
+
+  function drawChordBarres(layout){
+    clearChordBarres();
+    for(const b of layout.barres){
+      const line=document.createElement('div');
+      line.className='chordBarreLine';
+      line.style.left=b.x1+'px';
+      line.style.top=b.y+'px';
+      line.style.width=Math.max(0,b.x2-b.x1)+'px';
+      shell.appendChild(line);
+    }
+  }
+
+  function setChordFingerRect(el,g,instant=false){
+    const thickness=fingerRectThickness();
+    const dx=g.e.x-g.o.x;
+    const dy=g.e.y-g.o.y;
+
+    /*
+      One renderer for EVERY finger state in the app.
+
+      The rectangle is always anchored at the physical finger base on the
+      right. Ordinary single-note geometry may supply a long "rest" segment
+      even when g.on is false; chord geometry supplies e===o for an inactive
+      finger. Using the actual segment length in both cases preserves those
+      intended shapes without changing coordinate systems.
+    */
+    const length=Math.max(thickness,Math.hypot(dx,dy));
+
+    /*
+      The finger points mostly left. A raw vector angle therefore lives near
+      +180/-180 degrees. Expressing the rectangle from its RIGHT-HAND base
+      means 180 degrees is the neutral local direction, so subtract 180 and
+      normalize. The visible rotation now stays near 0 degrees and never
+      crosses the +/-180 discontinuity that caused the flipping seen in the
+      screen recording.
+    */
+    let rotation=Math.atan2(dy,dx)*180/Math.PI - 180;
+
+    while(rotation>180) rotation-=360;
+    while(rotation<-180) rotation+=360;
+
+    if(instant) el.style.transition='none';
+
+    el.style.transformOrigin='100% 50%';
+    el.style.left=(g.o.x-length)+'px';
+    el.style.top=(g.o.y-thickness/2)+'px';
+    el.style.width=length+'px';
+    el.style.height=thickness+'px';
+    el.style.transform=`rotate(${rotation}deg)`;
+    el.classList.toggle('engaged',g.on);
+
+    if(instant){
+      el.getBoundingClientRect();
+      el.style.transition='';
+    }
+  }
+
+  function drawChordHand(notes,instant=false){
+    const layout=computeChordHandLayout(notes);
+    layout.fingers.forEach((g,i)=>setChordFingerRect(fingerRects[i],g,instant));
+    drawChordBarres(layout);
+    return layout;
+  }
+
+  function chordNotesWithoutAssignments(notes){
+    return (notes || []).map(note=>({
+      s:note.s,
+      f:note.f
+    }));
+  }
+
+  function drawNeutralChordAssignmentHand(notes,instant=false){
+    return drawChordAssignmentHand(
+      chordNotesWithoutAssignments(notes),
+      instant
+    );
+  }
+
+  function drawChordAssignmentHand(notes,instant=false){
+    const layout=computeChordHandLayout(notes);
+    const extensionLength=Math.max(54,fingerRectThickness()*3.4);
+    chordFingerHitGeometry=[];
+
+    layout.fingers.forEach((g,i)=>{
+      let visibleGeometry=g;
+
+      if(!g.on){
+        /*
+          During chord fingering assignment, an unassigned finger should
+          still appear as a full finger rather than a short resting capsule.
+        */
+        visibleGeometry={
+          o:{...g.o},
+          e:{
+            x:g.o.x-extensionLength,
+            y:g.o.y
+          },
+          on:true
+        };
+      }
+
+      setChordFingerRect(fingerRects[i],visibleGeometry,instant);
+
+      // Record the exact visible centerline for this physical finger.
+      chordFingerHitGeometry.push({
+        finger:i,
+        o:{...visibleGeometry.o},
+        e:{...visibleGeometry.e}
+      });
+    });
+
+    drawChordBarres(layout);
+    return layout;
+  }
+
+  function pointToSegmentDistance(px,py,a,b){
+    const vx=b.x-a.x;
+    const vy=b.y-a.y;
+    const wx=px-a.x;
+    const wy=py-a.y;
+    const vv=vx*vx+vy*vy;
+
+    if(vv<=0.0001){
+      return Math.hypot(px-a.x,py-a.y);
+    }
+
+    const t=Math.max(0,Math.min(1,(wx*vx+wy*vy)/vv));
+    const qx=a.x+t*vx;
+    const qy=a.y+t*vy;
+    return Math.hypot(px-qx,py-qy);
+  }
+
+  function chordFingerFromTap(clientX,clientY){
+    if(!chordFingerHitGeometry.length) return -1;
+
+    // computeChordHandLayout() produces shell-relative points.
+    const rect=shell.getBoundingClientRect();
+    const px=clientX-rect.left;
+    const py=clientY-rect.top;
+
+    const ranked=chordFingerHitGeometry
+      .map(g=>({
+        finger:g.finger,
+        distance:pointToSegmentDistance(px,py,g.o,g.e)
+      }))
+      .sort((a,b)=>a.distance-b.distance);
+
+    if(!ranked.length) return -1;
+
+    // The visible capsule is approximately fingerRectThickness() wide.
+    // Add a small touch allowance for iPhone without allowing taps from
+    // neighboring lanes to steal one another.
+    const maxDistance=fingerRectThickness()*.85+10;
+    return ranked[0].distance<=maxDistance ? ranked[0].finger : -1;
+  }
+
+  function chooseChordFingerFromPointer(e){
+    if(
+      !S.fingeringAssign.active ||
+      !document.body.classList.contains('chordChoosingFinger')
+    ) return false;
+
+    const finger=chordFingerFromTap(e.clientX,e.clientY);
+    if(finger<0) return false;
+
+    chooseAssignedFinger(FINGER_LETTERS[finger]);
+    return true;
+  }
+
+  function chordApproxFingerPose(notes){
+    const layout=computeChordHandLayout(notes);
+    const p=blankFingerPose();
+    p.baseFret=layout.baseFret;
+
+    const fretted=(notes || []).filter(n=>n.f>0 && validFingerLetter(n.finger));
+    if(fretted.length){
+      p.activeString=fretted[fretted.length-1].s;
+    }
+
+    for(let finger=0;finger<4;finger++){
+      const assigned=chordAssignmentsForFinger(
+        (notes || []).map(n=>({...n,finger:n.f===0?null:fingerIndex(n.finger)})),
+        finger
+      );
+      if(!assigned.length) continue;
+
+      const barre=chordBarreInfo(
+        (notes || []).map(n=>({...n,finger:n.f===0?null:fingerIndex(n.finger)})),
+        finger
+      );
+      const focus=barre ? barre.farNote : assigned[0];
+      p.held.set(finger,{s:focus.s,f:focus.f});
+    }
+
+    return p;
   }
 
   function fingerGeometry(pose){
@@ -1513,36 +2627,68 @@ body.player .playerOnly{display:grid}
   }
 
   function setFingerRect(el,g,instant=false){
-    const dx=g.e.x-g.o.x;
-    const dy=g.e.y-g.o.y;
-    const length=Math.max(12,Math.hypot(dx,dy));
-    const angle=Math.atan2(dy,dx)*180/Math.PI;
-    const cx=(g.o.x+g.e.x)/2;
-    const cy=(g.o.y+g.e.y)/2;
-
-    if(instant) el.style.transition='none';
-
-    el.style.left=cx+'px';
-    el.style.top=cy+'px';
-    el.style.width=length+'px';
-    el.style.height=fingerRectThickness()+'px';
-    el.style.transform=`translate(-50%,-50%) rotate(${angle}deg)`;
-    el.classList.toggle('engaged',g.on);
-
-    if(instant){
-      el.getBoundingClientRect();
-      el.style.transition='';
-    }
+    /*
+      Individual notes, hammer-ons, pull-offs, slides and bends now use the
+      exact same base-anchored representation as chords. Their hand geometry
+      is unchanged; only the DOM rendering coordinate system is unified.
+    */
+    setChordFingerRect(el,g,instant);
   }
+
+  const FINGER_RENDERER_MODE='base-anchored-unified';
 
   function drawFingerPose(pose,instant=false){
     fingerGeometry(pose).forEach((g,i)=>setFingerRect(fingerRects[i],g,instant));
   }
 
-  function setFingerPoseForEvent(e){
-    const p=cloneFingerPose(S.fingerPose);
+  function restingPoseAtSameHandPosition(pose){
+    const p=cloneFingerPose(pose || blankFingerPose());
+    p.held.clear();
+    p.bendFinger=null;
+    p.bendAmount=0;
+    // Deliberately preserve baseFret and activeString. This is the physical
+    // hand location reached by the most recent finger assignment/movement.
+    return p;
+  }
+
+  function hasEstablishedHandPosition(pose){
+    return !!(
+      pose &&
+      (pose.activeString!==null || pose.held.size>0)
+    );
+  }
+
+  /*
+    SHARED HAND-POSITION ENGINE
+
+    This is the single source of truth for where the four fingers/hand end up
+    after an authored event. Both Admin assignment and Player playback use it.
+
+    Important: this routine calculates PHYSICAL HAND STATE only. Admin and
+    Player intentionally keep separate pink-marker/UI wrappers so their
+    display mechanics cannot interfere with one another.
+  */
+  function nextFingerPoseForEvent(currentPose,e){
+    const p=cloneFingerPose(currentPose || blankFingerPose());
+
+    if(e.type==='fingerOff'){
+      // Release the sounding/fretted note, but leave the hand exactly where
+      // the last physical assignment put it. Open strings that follow should
+      // not send the hand back to the default fret-5 location.
+      return restingPoseAtSameHandPosition(p);
+    }
+
+    if(e.type==='chord'){
+      return chordApproxFingerPose(e.notes || []);
+    }
 
     if(e.type==='fingerOn'){
+      // Open string: sounding phantom only. Leave the fretting hand where the
+      // surrounding sequence has placed it.
+      if(e.f===0){
+        return p;
+      }
+
       const finger=fingerIndex(e.finger);
       if(finger>=0){
         p.held.clear();
@@ -1552,60 +2698,104 @@ body.player .playerOnly{display:grid}
         p.bendFinger=null;
         p.bendAmount=0;
       }
+      return p;
     }
 
-    if(e.type==='move'){
-      if(e.movement==='hammer-on'){
-        const fromFinger=fingerIndex(e.fromFinger);
-        const toFinger=fingerIndex(e.toFinger ?? e.finger);
-        p.held.clear();
-        if(fromFinger>=0) p.held.set(fromFinger,clonePos(e.from));
-        if(toFinger>=0) p.held.set(toFinger,clonePos(e.to));
-        if(toFinger>=0) p.baseFret=clampFingerBase(e.to.f,toFinger);
-        p.activeString=e.to.s;
-        p.bendFinger=null;
-        p.bendAmount=0;
-      }
-
-      if(e.movement==='pull-off'){
-        const toFinger=fingerIndex(e.toFinger ?? e.finger);
-        p.held.clear();
-        if(toFinger>=0) p.held.set(toFinger,clonePos(e.to));
-        if(toFinger>=0) p.baseFret=clampFingerBase(e.to.f,toFinger);
-        p.activeString=e.to.s;
-        p.bendFinger=null;
-        p.bendAmount=0;
-      }
-
-      if(e.movement==='slide'){
-        const finger=fingerIndex(e.finger ?? e.toFinger);
-        p.held.clear();
-        if(finger>=0) p.held.set(finger,clonePos(e.to));
-        if(finger>=0) p.baseFret=clampFingerBase(e.to.f,finger);
-        p.activeString=e.to.s;
-        p.bendFinger=null;
-        p.bendAmount=0;
-      }
-
-      if(e.movement==='bend'){
-        const finger=fingerIndex(e.finger ?? e.toFinger);
-        const home=e.bendHome || (e.bendPhase==='release'?e.to:e.from);
-        p.held.clear();
-        if(finger>=0 && home) p.held.set(finger,clonePos(home));
-        if(finger>=0 && home) p.baseFret=clampFingerBase(home.f,finger);
-        p.activeString=home?home.s:e.to.s;
-        p.bendFinger=finger>=0?finger:null;
-
-        if(e.bendPhase==='release'){
-          p.bendAmount=0;
-        }else{
-          const semitones=Math.abs(e.to.f-e.from.f);
-          p.bendAmount=Math.max(0,Math.min(1,semitones/2));
-        }
-      }
+    if(e.type!=='move'){
+      return p;
     }
 
-    S.fingerPose=p;
+    if(e.movement==='hammer-on'){
+      const fromFinger=fingerIndex(e.fromFinger);
+      const toFinger=fingerIndex(e.toFinger ?? e.finger);
+
+      p.held.clear();
+      if(e.from.f>0 && fromFinger>=0) p.held.set(fromFinger,clonePos(e.from));
+      if(e.to.f>0 && toFinger>=0) p.held.set(toFinger,clonePos(e.to));
+
+      if(e.to.f>0 && toFinger>=0) p.baseFret=clampFingerBase(e.to.f,toFinger);
+      p.activeString=e.to.s;
+      p.bendFinger=null;
+      p.bendAmount=0;
+      return p;
+    }
+
+    if(e.movement==='pull-off'){
+      const toFinger=e.to && e.to.f===0
+        ? -1
+        : fingerIndex(e.toFinger ?? e.finger);
+
+      p.held.clear();
+      if(e.to.f>0 && toFinger>=0) p.held.set(toFinger,clonePos(e.to));
+
+      if(e.to.f>0 && toFinger>=0) p.baseFret=clampFingerBase(e.to.f,toFinger);
+      p.activeString=e.to.s;
+      p.bendFinger=null;
+      p.bendAmount=0;
+      return p;
+    }
+
+    if(e.movement==='slide'){
+      const finger=fingerIndex(e.finger ?? e.toFinger);
+
+      p.held.clear();
+      if(e.to.f>0 && finger>=0) p.held.set(finger,clonePos(e.to));
+
+      if(e.to.f>0 && finger>=0) p.baseFret=clampFingerBase(e.to.f,finger);
+      p.activeString=e.to.s;
+      p.bendFinger=null;
+      p.bendAmount=0;
+      return p;
+    }
+
+    if(e.movement==='bend'){
+      const finger=fingerIndex(e.finger ?? e.toFinger);
+      const home=e.bendHome || (e.bendPhase==='release'?e.to:e.from);
+
+      p.held.clear();
+      if(finger>=0 && home) p.held.set(finger,clonePos(home));
+
+      if(finger>=0 && home) p.baseFret=clampFingerBase(home.f,finger);
+      p.activeString=home?home.s:e.to.s;
+      p.bendFinger=finger>=0?finger:null;
+
+      if(e.bendPhase==='release'){
+        p.bendAmount=0;
+      }else{
+        const semitones=Math.abs(e.to.f-e.from.f);
+        p.bendAmount=Math.max(0,Math.min(1,semitones/2));
+      }
+      return p;
+    }
+
+    return p;
+  }
+
+  function setFingerPoseForEvent(e){
+    S.fingerPose=nextFingerPoseForEvent(S.fingerPose,e);
+    return S.fingerPose;
+  }
+
+  function pullOffPreparedPose(e,finalPose){
+    // A real pull-off requires the receiving/lower finger to already be
+    // planted before the releasing finger leaves the string.
+    const p=cloneFingerPose(finalPose);
+
+    const fromFinger=fingerIndex(e.fromFinger);
+    const toFinger=e.to && e.to.f===0
+      ? -1
+      : fingerIndex(e.toFinger ?? e.finger);
+
+    if(e.to.f>0 && toFinger>=0){
+      p.held.set(toFinger,clonePos(e.to));
+    }
+    if(fromFinger>=0){
+      p.held.set(fromFinger,clonePos(e.from));
+    }
+
+    p.activeString=e.to.s;
+    p.bendFinger=null;
+    p.bendAmount=0;
     return p;
   }
 
@@ -1626,9 +2816,15 @@ body.player .playerOnly{display:grid}
 
   function moveDotTo(el,pos,duration){
     if(!el) return;
+
+    const targetHost=pos.f===0?orow:bd;
+    if(el.parentElement!==targetHost){
+      targetHost.appendChild(el);
+    }
+
     setMarkTransition(el,duration);
     el.style.left=stringXs()[pos.s]+'px';
-    el.style.top=yForFret(pos.f)+'px';
+    el.style.top=(pos.f===0?32:yForFret(pos.f))+'px';
   }
 
   async function discretePluckMarker(e,run){
@@ -1642,7 +2838,7 @@ body.player .playerOnly{display:grid}
       old.remove();
     }
 
-    const d=makeMark('fingerMark',e.s,e.f,noteName(e.s,e.f));
+    const d=makeMark(fingerMarkClass(e),e.s,e.f,e.f===0?'':noteName(e.s,e.f));
     d.style.opacity='0';
     d.style.transform='translate(-50%,-50%) scale(.72)';
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
@@ -1657,13 +2853,14 @@ body.player .playerOnly{display:grid}
   async function connectedMarkerMove(to,duration,run){
     let d=currentPlaybackDot();
     if(!d){
-      d=makeMark('fingerMark',to.s,to.f,noteName(to.s,to.f));
+      d=makeMark(fingerMarkClass(to),to.s,to.f,to.f===0?'':noteName(to.s,to.f));
       return d;
     }
     moveDotTo(d,to,duration);
     await sleep(duration);
     if(run!==S.runId) return null;
-    d.textContent=noteName(to.s,to.f);
+    d.classList.toggle('openPhantom',to.f===0);
+    d.textContent=to.f===0?'':noteName(to.s,to.f);
     return d;
   }
 
@@ -1671,7 +2868,7 @@ body.player .playerOnly{display:grid}
     let dot=currentPlaybackDot();
     if(!dot){
       const home=e.bendHome || e.from;
-      dot=makeMark('fingerMark',home.s,home.f,noteName(home.s,home.f));
+      dot=makeMark(fingerMarkClass(home),home.s,home.f,home.f===0?'':noteName(home.s,home.f));
     }
 
     const X=stringXs();
@@ -1771,10 +2968,29 @@ body.player .playerOnly{display:grid}
     return ev;
   }
 
+  function showPlaybackFingers(){
+    document.body.classList.add('fingeringPlayback');
+    fingerLayer.style.display='block';
+  }
+
+  function hidePlaybackFingers(){
+    document.body.classList.remove('fingeringPlayback');
+    fingerLayer.style.display='';
+  }
+
   async function playFingeredOne(e,run){
+    showPlaybackFingers();
+    clearChordBarres();
     const start=performance.now();
+
+    // Player uses the same shared hand-position engine as Admin.
     const target=setFingerPoseForEvent(e);
-    drawFingerPose(target,false);
+
+    // Pull-offs need an intermediate preparation pose: the destination finger
+    // must arrive and settle while the origin finger is still holding the note.
+    if(!(e.type==='move' && e.movement==='pull-off')){
+      drawFingerPose(target,false);
+    }
 
     if(e.type==='fingerOn'){
       await discretePluckMarker(e,run);
@@ -1789,9 +3005,28 @@ body.player .playerOnly{display:grid}
         playHammerOnArticulation(e);
 
       }else if(e.movement==='pull-off'){
+        // First plant the destination finger while the originating finger
+        // continues to hold the current note.
+        const prepared=pullOffPreparedPose(e,target);
+        drawFingerPose(prepared,false);
+        await sleep(470);
+        if(run!==S.runId) return;
+
+        // Now the pull-off itself occurs: burst/click at the origin, and the
+        // releasing finger retracts. The destination finger remains planted.
+        playPullOffRelease(e);
+        drawFingerPose(target,false);
+
+        // Keep the release cue perceptibly ahead of the pink-note movement.
+        await sleep(55);
+        if(run!==S.runId) return;
+
+        // Then the pink marker travels to the already-prepared destination.
         await connectedMarkerMove(e.to,205,run);
         if(run!==S.runId) return;
-        playPullOffArticulation(e);
+
+        // Finally the resulting lower note sounds.
+        playPullOffResult(e);
 
       }else if(e.movement==='slide'){
         // Start the squeak + rapid chromatic transition while the hand and
@@ -1825,6 +3060,7 @@ body.player .playerOnly{display:grid}
   async function playFingeringDemo(){
     stopPlayback(false);
     document.body.classList.add('fingerDemo');
+    fingerLayer.style.display='block';
 
     const run=++S.runId;
     S.playback=blankState();
@@ -1953,6 +3189,18 @@ body.player .playerOnly{display:grid}
     renderAuthor();
   }
 
+  function frameworkMarkClass(p){
+    const base=`frameworkMark ${isInKey(p.s,p.f)?'in':'out'}`;
+    return p.f===0 ? `${base} openPhantom` : base;
+  }
+
+  function fingerMarkClass(p,extra=''){
+    const parts=['fingerMark'];
+    if(p && p.f===0) parts.push('openPhantom');
+    if(extra) parts.push(extra);
+    return parts.join(' ');
+  }
+
   function makeMark(cls,s,f,text=''){
     const host=f===0?orow:bd;
     const d=document.createElement('div');
@@ -1965,20 +3213,20 @@ body.player .playerOnly{display:grid}
   }
 
   function clearOverlays(){
-    document.querySelectorAll('.frameworkMark,.fingerMark,.moveLabel').forEach(x=>x.remove());
+    document.querySelectorAll('.frameworkMark,.fingerMark,.moveLabel,.articulationSpark,.chordBarreLine').forEach(x=>x.remove());
     moveSvg.innerHTML='';
   }
 
   function renderState(st){
     clearOverlays();
     for(const p of st.framework.values()){
-      makeMark(`frameworkMark ${isInKey(p.s,p.f)?'in':'out'}`,p.s,p.f,noteName(p.s,p.f));
+      makeMark(frameworkMarkClass(p),p.s,p.f,p.f===0?'':noteName(p.s,p.f));
     }
     for(const p of st.fingers.values()){
       if(p.kind==='bendRing'){
-        makeMark('fingerMark bendRing',p.s,p.f,'');
+        makeMark(fingerMarkClass(p,'bendRing'),p.s,p.f,'');
       }else{
-        makeMark('fingerMark',p.s,p.f,noteName(p.s,p.f));
+        makeMark(fingerMarkClass(p),p.s,p.f,p.f===0?'':noteName(p.s,p.f));
       }
     }
   }
@@ -1993,13 +3241,32 @@ body.player .playerOnly{display:grid}
     if(e.type==='frameworkOff') st.framework.delete(k);
 
     if(e.type==='fingerOn'){
-      st.fingers.set(k,{s:e.s,f:e.f,kind:'solid'});
+      st.fingers.set(k,{
+        s:e.s,
+        f:e.f,
+        kind:e.f===0?'openRing':'solid'
+      });
       st.currentOrigin={s:e.s,f:e.f};
     }
 
     if(e.type==='fingerOff'){
       st.fingers.delete(k);
       // Any Admin OFF action breaks the implied continuation.
+      st.currentOrigin=null;
+    }
+
+    if(e.type==='chord'){
+      for(const note of e.notes || []){
+        const nk=posKey(note.s,note.f);
+        st.fingers.set(nk,{
+          s:note.s,
+          f:note.f,
+          kind:note.f===0?'openRing':'solid',
+          chordId:e.chordId
+        });
+      }
+
+      // A chord has no single unambiguous movement origin.
       st.currentOrigin=null;
     }
 
@@ -2018,8 +3285,12 @@ body.player .playerOnly{display:grid}
           bendFrom:clonePos(e.from)
         });
       }else{
-        // Bend release and all other movements land on a normal solid pink finger.
-        st.fingers.set(dk,{s:e.to.s,f:e.to.f,kind:'solid'});
+        // Open strings are phantom sounding positions, never physical fingers.
+        st.fingers.set(dk,{
+          s:e.to.s,
+          f:e.to.f,
+          kind:e.to.f===0?'openRing':'solid'
+        });
       }
 
       st.currentOrigin={s:e.to.s,f:e.to.f};
@@ -2031,6 +3302,7 @@ body.player .playerOnly{display:grid}
     for(const e of S.events) applyEventInstant(S.author,e);
     renderAuthor();
     renderEventList();
+    updateChordButton();
   }
 
   function playableEvents(){return S.events.filter(e=>e.play!==false)}
@@ -2042,6 +3314,164 @@ body.player .playerOnly{display:grid}
   function currentFingerEntry(){
     if(!S.author.currentOrigin) return null;
     return S.author.fingers.get(posKey(S.author.currentOrigin.s,S.author.currentOrigin.f)) || null;
+  }
+
+  function activePinkSourceMap(){
+    const sources=new Map();
+
+    S.events.forEach((e,eventIndex)=>{
+      if(e.type==='fingerOn'){
+        sources.set(posKey(e.s,e.f),{
+          eventIndex,
+          type:'fingerOn'
+        });
+        return;
+      }
+
+      if(e.type==='fingerOff'){
+        sources.delete(posKey(e.s,e.f));
+        return;
+      }
+
+      if(e.type==='move'){
+        sources.delete(posKey(e.from.s,e.from.f));
+        sources.set(posKey(e.to.s,e.to.f),{
+          eventIndex,
+          type:'move'
+        });
+        return;
+      }
+
+      if(e.type==='chord'){
+        (e.notes || []).forEach((note,noteIndex)=>{
+          sources.set(posKey(note.s,note.f),{
+            eventIndex,
+            type:'chord',
+            noteIndex
+          });
+        });
+      }
+    });
+
+    return sources;
+  }
+
+  function currentPinkPositions(){
+    return [...S.author.fingers.values()]
+      .filter(p=>p && p.kind!=='bendRing')
+      .map(p=>({s:p.s,f:p.f}))
+      .sort((a,b)=>a.s-b.s || a.f-b.f);
+  }
+
+  function updateChordButton(){
+    if(!chordBtn) return;
+    const ready=
+      !document.body.classList.contains('player') &&
+      !S.fingeringAssign.active &&
+      S.tool==='finger' &&
+      currentPinkPositions().length>1;
+
+    chordBtn.disabled=!ready;
+    chordBtn.classList.toggle('ready',ready);
+  }
+
+  function groupCurrentPinkAsChord(){
+    if(S.fingeringAssign.active) return;
+    exitSequencePreview();
+
+    if(S.tool!=='finger') setTool('finger');
+
+    const visible=currentPinkPositions();
+    if(visible.length<2){
+      announce('Add at least two pink notes before creating a chord.',false);
+      return;
+    }
+
+    const sources=activePinkSourceMap();
+    const refs=visible.map(pos=>({
+      pos,
+      source:sources.get(posKey(pos.s,pos.f))
+    }));
+
+    if(refs.some(r=>!r.source)){
+      announce('One of the visible pink notes could not be traced to its source event.',false);
+      return;
+    }
+
+    const sourceIndexes=[...new Set(refs.map(r=>r.source.eventIndex))];
+    const sourceEvents=sourceIndexes.map(i=>S.events[i]);
+
+    if(
+      sourceIndexes.length===1 &&
+      sourceEvents[0] &&
+      sourceEvents[0].type==='chord'
+    ){
+      announce('These pink notes are already one chord.',false);
+      return;
+    }
+
+    /*
+      Keep chord creation intentionally conservative around movements. A
+      movement carries its own articulation/timing semantics, so silently
+      collapsing one into a chord would destroy that information.
+    */
+    if(sourceEvents.some(e=>e && e.type==='move')){
+      announce('A movement-derived pink note cannot be folded into a chord yet. Use ordinary Dynamic notes for the chord shape.',false);
+      return;
+    }
+
+    const notes=refs.map(({pos,source})=>{
+      const sourceEvent=S.events[source.eventIndex];
+      let finger=null;
+
+      if(sourceEvent.type==='fingerOn'){
+        finger=validFingerLetter(sourceEvent.finger)
+          ? fingerLetter(sourceEvent.finger)
+          : null;
+      }else if(sourceEvent.type==='chord'){
+        const oldNote=sourceEvent.notes[source.noteIndex];
+        finger=oldNote && validFingerLetter(oldNote.finger)
+          ? fingerLetter(oldNote.finger)
+          : null;
+      }
+
+      const note={s:pos.s,f:pos.f};
+      if(finger) note.finger=finger;
+      return note;
+    });
+
+    const maxIndex=Math.max(...sourceIndexes);
+    const removeSet=new Set(sourceIndexes);
+
+    const chordEvent={
+      type:'chord',
+      chordId:'chord-'+(S.nextChordId++),
+      notes,
+      play:true
+    };
+
+    const rebuilt=[];
+    for(let i=0;i<S.events.length;i++){
+      if(i===maxIndex){
+        rebuilt.push(chordEvent);
+        continue;
+      }
+      if(removeSet.has(i)) continue;
+      rebuilt.push(S.events[i]);
+    }
+
+    S.events=rebuilt;
+    S.pendingMove=null;
+    updateMoveButtons();
+    rebuildAuthor();
+
+    shell.classList.remove('chordConfirmPulse');
+    shell.getBoundingClientRect();
+    shell.classList.add('chordConfirmPulse');
+    setTimeout(()=>shell.classList.remove('chordConfirmPulse'),450);
+
+    const names=notes.map(n=>noteName(n.s,n.f)).join(' · ');
+    announce(`Chord: ${names}`,true);
   }
 
   function validateMove(kind,from,to,fromEntry){
@@ -2069,7 +3499,12 @@ body.player .playerOnly{display:grid}
 
   function handlePosition(s,f){
     if(document.body.classList.contains('player')) return;
-    if(S.fingeringAssign.active) return;
+
+    if(S.fingeringAssign.active){
+      handleChordFingeringPositionTap(s,f);
+      return;
+    }
+
     exitSequencePreview();
     const k=posKey(s,f);
 
@@ -2158,6 +3593,7 @@ body.player .playerOnly{display:grid}
     if(kind==='pull-off') return 'Pull-off';
     if(kind==='bend') return 'Bend';
     if(kind==='slide') return 'Slide';
+    if(kind==='chord') return 'Chord';
     return kind;
   }
 
@@ -2182,6 +3618,392 @@ body.player .playerOnly{display:grid}
     return null;
   }
 
+  function clearFingeringMovementCues(){
+    shell.querySelectorAll('.fingerAssignCue').forEach(el=>el.remove());
+  }
+
+  function addFingeringMovementCue(pos,label){
+    if(!pos || !label) return;
+    const cue=document.createElement('div');
+    cue.className='fingerAssignCue';
+    cue.textContent=label;
+    const p=shellPoint(pos.s,pos.f);
+    cue.style.left=p.x+'px';
+    cue.style.top=p.y+'px';
+    cue.dataset.cueKey=`${pos.s}:${pos.f}:${label}`;
+    shell.appendChild(cue);
+  }
+
+  function showFingeringMovementCues(target){
+    clearFingeringMovementCues();
+    if(!target) return;
+
+    const seen=new Set();
+    const add=(pos,label)=>{
+      if(!pos || !label) return;
+      const key=`${pos.s}:${pos.f}:${label}`;
+      if(seen.has(key)) return;
+      seen.add(key);
+      addFingeringMovementCue(pos,label);
+    };
+
+    const event=S.events[target.eventIndex];
+
+    // If the current assignment itself is the destination of a movement,
+    // annotate according to the musical meaning of that movement.
+    if(event && event.type==='move'){
+      if(event.movement==='hammer-on') add(event.to,'H');
+      if(event.movement==='pull-off') add(event.from,'P');
+      if(event.movement==='slide') add(event.to,'S');
+      if(event.movement==='bend' && event.bendPhase!=='release') add(event.from,'B');
+    }
+
+    // Also show the movement that follows the currently assigned origin note.
+    const upcoming=nextMovementFromTarget(target);
+    if(upcoming){
+      if(upcoming.movement==='hammer-on') add(upcoming.to,'H');
+      if(upcoming.movement==='pull-off') add(upcoming.from,'P');
+      if(upcoming.movement==='slide') add(upcoming.to,'S');
+      if(upcoming.movement==='bend' && upcoming.bendPhase!=='release') add(upcoming.from,'B');
+    }
+  }
+
+  function setAssignmentMarkPosition(pos,instant=false){
+    if(!pos) return;
+    const p=shellPoint(pos.s,pos.f);
+
+    if(instant){
+      fingerAssignMark.style.transition='none';
+    }
+
+    fingerAssignMark.classList.toggle('openPhantom',pos.f===0);
+    fingerAssignMark.textContent=pos.f===0?'':noteName(pos.s,pos.f);
+    fingerAssignMark.style.left=p.x+'px';
+    fingerAssignMark.style.top=p.y+'px';
+
+    if(instant){
+      fingerAssignMark.getBoundingClientRect();
+      fingerAssignMark.style.transition='';
+    }
+  }
+
+  async function moveAssignmentMarkTo(pos,duration){
+    if(!pos) return;
+
+    const p=shellPoint(pos.s,pos.f);
+    fingerAssignMark.style.transition=
+      `left ${duration}ms cubic-bezier(.22,.72,.24,1),`+
+      `top ${duration}ms cubic-bezier(.22,.72,.24,1)`;
+
+    fingerAssignMark.style.left=p.x+'px';
+    fingerAssignMark.style.top=p.y+'px';
+
+    await sleep(duration);
+    fingerAssignMark.textContent=noteName(pos.s,pos.f);
+  }
+
+  async function bendAssignmentMark(e,duration){
+    const home=e.bendHome || (e.bendPhase==='release'?e.to:e.from);
+    if(!home) return;
+
+    const X=stringXs();
+    const start=shellPoint(home.s,home.f);
+    const nextX=X[Math.min(5,home.s+1)];
+    const semitones=Math.abs(e.to.f-e.from.f);
+    const amount=Math.max(0,Math.min(1,semitones/2));
+
+    const targetX=e.bendPhase==='release'
+      ? start.x
+      : start.x+(nextX-start.x)*amount;
+
+    fingerAssignMark.style.transition=
+      `left ${duration}ms cubic-bezier(.22,.72,.24,1),`+
+      `top ${duration}ms cubic-bezier(.22,.72,.24,1)`;
+
+    fingerAssignMark.style.left=targetX+'px';
+    fingerAssignMark.style.top=start.y+'px';
+
+    await sleep(duration);
+  }
+
+  function nextFingeringTargetAfter(target){
+    if(!target || !S.fingeringAssign.active) return null;
+    return S.fingeringAssign.targets[S.fingeringAssign.cursor+1] || null;
+  }
+
+  function inheritedAssignmentEventsAfter(target,nextTarget){
+    if(!target) return [];
+
+    const end=nextTarget ? nextTarget.eventIndex-1 : S.events.length-1;
+    const out=[];
+
+    for(let i=target.eventIndex+1;i<=end;i++){
+      const e=S.events[i];
+
+      if(e.type==='frameworkOn' || e.type==='frameworkOff' || e.play===false){
+        continue;
+      }
+
+      // Everything between two fingering targets is already resolved:
+      // - open-string plucks require no finger,
+      // - pull-offs to open require no receiving finger,
+      // - slides/bends inherit the prior finger,
+      // - fingerOff changes sounding state but not hand location.
+      //
+      // Admin should therefore PLAY these events before asking for the next
+      // unresolved finger assignment.
+      out.push(e);
+    }
+
+    return out;
+  }
+
+  async function auditionAssignedTarget(target){
+    if(!target) return;
+
+    const e=S.events[target.eventIndex];
+    const run=S.runId;
+
+    // Make sure sampled guitar is ready while we are still inside the user's
+    // finger-selection gesture.
+    await unlockSampleAudio();
+
+    if(e.type==='chord' && target.kind==='chord'){
+      const note=e.notes[target.chordNoteIndex];
+
+      drawChordAssignmentHand(e.notes,false);
+      S.fingerPose=chordApproxFingerPose(e.notes);
+
+      // During assignment, audition only the note whose finger was just
+      // chosen. Player will sound the complete chord simultaneously.
+      playStringSample(note.s,note.f,.20,.72);
+      await sleep(250);
+      return;
+    }
+
+    if(e.type==='fingerOn'){
+      // The chosen finger physically takes the note and stays there.
+      const finalPose=setFingerPoseForEvent(e);
+      drawFingerPose(finalPose,false);
+
+      // A normal pluck is heard immediately.
+      playStringSample(e.s,e.f,.20,.72);
+      await sleep(250);
+      return;
+    }
+
+    if(e.type!=='move') return;
+
+    if(e.movement==='hammer-on'){
+      // Start the assignment cue at the sounding origin so the selected
+      // articulation is actually demonstrated, then land on the destination.
+      setAssignmentMarkPosition(e.from,true);
+
+      const finalPose=setFingerPoseForEvent(e);
+      drawFingerPose(finalPose,false);
+
+      await moveAssignmentMarkTo(e.to,205);
+      if(run!==S.runId) return;
+      playHammerOnArticulation(e);
+      await sleep(180);
+      return;
+    }
+
+    if(e.movement==='pull-off'){
+      const finalPose=setFingerPoseForEvent(e);
+      const prepared=pullOffPreparedPose(e,finalPose);
+
+      setAssignmentMarkPosition(e.from,true);
+      drawFingerPose(prepared,false);
+      await sleep(300);
+      if(run!==S.runId) return;
+
+      playPullOffRelease(e);
+      drawFingerPose(finalPose,false);
+
+      await sleep(55);
+      if(run!==S.runId) return;
+
+      await moveAssignmentMarkTo(e.to,205);
+      if(run!==S.runId) return;
+      playPullOffResult(e);
+      await sleep(140);
+      return;
+    }
+
+    // Slide and bend normally inherit fingering and therefore are auditioned
+    // by auditionInheritedAssignmentEvent() below.
+  }
+
+  async function auditionInheritedAssignmentEvent(e){
+    const run=S.runId;
+
+    if(e.type==='fingerOff'){
+      S.fingerPose=nextFingerPoseForEvent(S.fingerPose,e);
+      drawFingerPose(S.fingerPose,false);
+      await sleep(90);
+      return;
+    }
+
+    if(e.type==='chord'){
+      drawChordHand(e.notes || [],false);
+      S.fingerPose=chordApproxFingerPose(e.notes || []);
+      for(const note of e.notes || []){
+        playStringSample(note.s,note.f,.20,.68);
+      }
+      await sleep(520);
+      return;
+    }
+
+    if(e.type==='fingerOn'){
+      // Open-string note: phantom sounding position only. Play it before the
+      // next finger request and leave the hand at the last established
+      // physical position.
+      if(e.f===0){
+        S.fingerPose=nextFingerPoseForEvent(S.fingerPose,e);
+        drawFingerPose(S.fingerPose,false);
+
+        setAssignmentMarkPosition({s:e.s,f:e.f},true);
+        fingerAssignMark.classList.add('openPhantom');
+        fingerAssignMark.textContent='';
+        fingerAssignMark.style.display='flex';
+
+        playStringSample(e.s,e.f,.20,.72);
+        await sleep(520);
+        if(run!==S.runId) return;
+      }
+      return;
+    }
+
+    if(e.type!=='move') return;
+
+    if(e.movement==='hammer-on'){
+      // Defensive support for any fingerless/open destination movement.
+      setAssignmentMarkPosition(e.from,true);
+
+      const finalPose=setFingerPoseForEvent(e);
+      drawFingerPose(finalPose,false);
+
+      await moveAssignmentMarkTo(e.to,205);
+      fingerAssignMark.classList.toggle('openPhantom',e.to.f===0);
+      fingerAssignMark.textContent=e.to.f===0?'':noteName(e.to.s,e.to.f);
+      if(run!==S.runId) return;
+
+      playHammerOnArticulation(e);
+      await sleep(180);
+      return;
+    }
+
+    if(e.movement==='pull-off'){
+      const finalPose=setFingerPoseForEvent(e);
+      const prepared=pullOffPreparedPose(e,finalPose);
+
+      setAssignmentMarkPosition(e.from,true);
+      fingerAssignMark.classList.remove('openPhantom');
+      drawFingerPose(prepared,false);
+      await sleep(300);
+      if(run!==S.runId) return;
+
+      playPullOffRelease(e);
+      drawFingerPose(finalPose,false);
+
+      await sleep(55);
+      if(run!==S.runId) return;
+
+      await moveAssignmentMarkTo(e.to,205);
+      fingerAssignMark.classList.toggle('openPhantom',e.to.f===0);
+      fingerAssignMark.textContent=e.to.f===0?'':noteName(e.to.s,e.to.f);
+      if(run!==S.runId) return;
+
+      playPullOffResult(e);
+      await sleep(140);
+      return;
+    }
+
+    if(e.movement==='slide'){
+      setAssignmentMarkPosition(e.from,true);
+
+      const finalPose=setFingerPoseForEvent(e);
+      drawFingerPose(finalPose,false);
+
+      const audioPromise=playSlideArticulation(e,run);
+      await moveAssignmentMarkTo(e.to,460);
+      await audioPromise;
+      if(run!==S.runId) return;
+
+      fingerAssignMark.classList.toggle('openPhantom',e.to.f===0);
+      fingerAssignMark.textContent=e.to.f===0?'':noteName(e.to.s,e.to.f);
+      await sleep(120);
+      return;
+    }
+
+    if(e.movement==='bend'){
+      const finalPose=setFingerPoseForEvent(e);
+      drawFingerPose(finalPose,false);
+
+      if(e.bendPhase==='release'){
+        releaseBendArticulation(e);
+      }else{
+        startBendArticulation(e);
+      }
+
+      await bendAssignmentMark(e,460);
+      if(run!==S.runId) return;
+      await sleep(100);
+    }
+  }
+
+  function buildAssignedPoseThrough(eventIndex){
+    const saved=S.fingerPose;
+    S.fingerPose=blankFingerPose();
+
+    for(let i=0;i<=eventIndex;i++){
+      const e=S.events[i];
+
+      if(e.type==='fingerOff'){
+        S.fingerPose=restingPoseAtSameHandPosition(S.fingerPose);
+        continue;
+      }
+
+      if(e.type==='fingerOn'){
+        if(validFingerLetter(e.finger)) setFingerPoseForEvent(e);
+        continue;
+      }
+
+      if(e.type==='chord'){
+        S.fingerPose=chordApproxFingerPose(e.notes || []);
+        continue;
+      }
+
+      if(e.type==='move'){
+        if(validFingerLetter(e.finger)) setFingerPoseForEvent(e);
+      }
+    }
+
+    const built=cloneFingerPose(S.fingerPose);
+    S.fingerPose=saved;
+    return built;
+  }
+
+  function assignmentChoicePose(target){
+    const p=cloneFingerPose(S.fingerPose || blankFingerPose());
+
+    // Once the hand has reached a physical position, that exact pose is the
+    // starting point for the next assignment. Do NOT change activeString,
+    // baseFret, or any held finger merely because the next target is elsewhere.
+    if(hasEstablishedHandPosition(p)){
+      return p;
+    }
+
+    // Only the first choice (or a choice after a true finger-off) needs a
+    // neutral hand position placed around the target region.
+    p.activeString=target.pos.s;
+    p.baseFret=Math.max(1,Math.min(TOTAL_FRETS-3,target.pos.f-1));
+    p.bendFinger=null;
+    p.bendAmount=0;
+    return p;
+  }
+
   function fingeringTargetLabel(target){
     if(!target) return '';
 
@@ -2191,6 +4013,7 @@ body.player .playerOnly{display:grid}
       return prettyMove(upcoming.movement);
     }
 
+    if(target.kind==='chord') return 'Chord';
     if(target.kind==='pluck') return 'Pluck';
     if(target.kind==='hammer-on') return 'Hammer-on';
     if(target.kind==='pull-off') return 'Pull-off';
@@ -2206,6 +4029,8 @@ body.player .playerOnly{display:grid}
       if(e.play===false) return;
 
       if(e.type==='fingerOn'){
+        if(e.f===0) return;
+
         targets.push({
           eventIndex,
           pos:{s:e.s,f:e.f},
@@ -2214,15 +4039,30 @@ body.player .playerOnly{display:grid}
         return;
       }
 
+      if(e.type==='chord'){
+        const fretted=(e.notes || []).filter(note=>note.f>0);
+
+        // A chord is ONE fingering stop. The user chooses the individual
+        // chord member to assign, exactly as in the standalone prototype.
+        if(fretted.length){
+          targets.push({
+            eventIndex,
+            pos:{s:fretted[0].s,f:fretted[0].f},
+            kind:'chord'
+          });
+        }
+        return;
+      }
+
       if(e.type==='move' && (e.movement==='hammer-on' || e.movement==='pull-off')){
+        if(e.to && e.to.f===0) return;
+
         targets.push({
           eventIndex,
           pos:clonePos(e.to),
           kind:e.movement
         });
       }
-      // Slide destinations inherit the origin finger.
-      // Bend phantom notes and bend releases also inherit the physical finger.
     });
     return targets;
   }
@@ -2235,6 +4075,8 @@ body.player .playerOnly{display:grid}
         delete e.finger;
         delete e.fromFinger;
         delete e.toFinger;
+      }else if(e.type==='chord'){
+        (e.notes || []).forEach(note=>delete note.finger);
       }
     }
   }
@@ -2250,7 +4092,18 @@ body.player .playerOnly{display:grid}
         continue;
       }
 
+      if(e.type==='chord'){
+        currentFinger=null;
+        continue;
+      }
+
       if(e.type==='fingerOn'){
+        if(e.f===0){
+          delete e.finger;
+          // Open-string pluck does not itself change the fretting hand.
+          continue;
+        }
+
         currentFinger=validFingerLetter(e.finger)?fingerLetter(e.finger):null;
         continue;
       }
@@ -2260,10 +4113,24 @@ body.player .playerOnly{display:grid}
       const fromFinger=currentFinger;
 
       if(e.movement==='hammer-on' || e.movement==='pull-off'){
-        const toFinger=validFingerLetter(e.finger)?fingerLetter(e.finger):null;
-
         if(fromFinger) e.fromFinger=fromFinger;
         else delete e.fromFinger;
+
+        // Open destination: no receiving finger exists. For pull-off playback,
+        // keep e.finger as the releasing/origin finger so the physical action
+        // can still be animated, then release the held hand state.
+        if(e.to && e.to.f===0){
+          delete e.toFinger;
+          if(e.movement==='pull-off' && fromFinger){
+            e.finger=fromFinger;
+          }else{
+            delete e.finger;
+          }
+          currentFinger=null;
+          continue;
+        }
+
+        const toFinger=validFingerLetter(e.finger)?fingerLetter(e.finger):null;
 
         if(toFinger){
           e.toFinger=toFinger;
@@ -2292,21 +4159,187 @@ body.player .playerOnly{display:grid}
     }
   }
 
+  function targetFingerValue(target){
+    if(!target) return null;
+    const e=S.events[target.eventIndex];
+    if(!e) return null;
+    return e.finger;
+  }
+
+  function chordFingeringComplete(e){
+    return !!(
+      e &&
+      e.type==='chord' &&
+      (e.notes || []).every(note=>
+        note.f===0 || validFingerLetter(note.finger)
+      )
+    );
+  }
+
+  function fingeringTargetComplete(target){
+    if(!target) return false;
+    const e=S.events[target.eventIndex];
+    if(!e) return false;
+
+    if(target.kind==='chord'){
+      return chordFingeringComplete(e);
+    }
+
+    return validFingerLetter(e.finger);
+  }
+
+  function firstIncompleteFingeringTargetIndex(targets){
+    return (targets || []).findIndex(target=>!fingeringTargetComplete(target));
+  }
+
+  function makeFingeringSnapshot(){
+    return {
+      events:cloneEvents(S.events),
+      cursor:S.fingeringAssign.cursor,
+      selectedChordNoteIndex:S.fingeringAssign.selectedChordNoteIndex,
+      completedChordReviewEventIndex:S.fingeringAssign.completedChordReviewEventIndex
+    };
+  }
+
+  function pushFingeringSnapshot(){
+    S.fingeringAssign.assignmentHistory.push(makeFingeringSnapshot());
+    if(S.fingeringAssign.assignmentHistory.length>100){
+      S.fingeringAssign.assignmentHistory.shift();
+    }
+  }
+
+  function restoreFingeringSnapshot(snapshot){
+    if(!snapshot) return false;
+
+    hideFingeringConfirmDialog();
+
+    S.events=cloneEvents(snapshot.events);
+    S.fingeringAssign.targets=fingeringTargets();
+    S.fingeringAssign.cursor=Math.max(
+      0,
+      Math.min(
+        S.fingeringAssign.targets.length-1,
+        Number.isInteger(snapshot.cursor)?snapshot.cursor:0
+      )
+    );
+    S.fingeringAssign.selectedChordNoteIndex=
+      Number.isInteger(snapshot.selectedChordNoteIndex)
+        ? snapshot.selectedChordNoteIndex
+        : null;
+    S.fingeringAssign.completedChordReviewEventIndex=
+      Number.isInteger(snapshot.completedChordReviewEventIndex)
+        ? snapshot.completedChordReviewEventIndex
+        : null;
+    S.fingeringAssign.confirmingChordEventIndex=null;
+
+    S.fingerPose=blankFingerPose();
+    renderEventList();
+    prepareFingeringTargetPose(currentFingeringTarget());
+    showFingeringTarget(false);
+    return true;
+  }
+
+  function prepareFingeringTargetPose(target){
+    S.fingerPose=blankFingerPose();
+    clearChordBarres();
+
+    if(!target) return;
+
+    const e=S.events[target.eventIndex];
+    if(!e) return;
+
+    // Chords are rendered directly by the validated chord hand engine.
+    if(target.kind==='chord') return;
+
+    // When revisiting an already assigned position, show its saved fingering
+    // rather than pretending it is a brand-new choice.
+    if(validFingerLetter(e.finger)){
+      S.fingerPose=nextFingerPoseForEvent(blankFingerPose(),e);
+      return;
+    }
+
+    S.fingerPose=assignmentChoicePose(target);
+  }
+
+  function fingeringTargetIndexForEvent(eventIndex){
+    return S.fingeringAssign.targets.findIndex(
+      target=>target.eventIndex===eventIndex
+    );
+  }
+
+  function jumpToFingeringEvent(eventIndex){
+    if(!S.fingeringAssign.active) return false;
+
+    const targetIndex=fingeringTargetIndexForEvent(eventIndex);
+    if(targetIndex<0){
+      statusEl.innerHTML=
+        '<strong>No independent fingering assignment here.</strong><br>'+
+        'Choose a pluck, hammer/pull destination, or chord row.';
+      return false;
+    }
+
+    hideFingeringConfirmDialog();
+    S.fingeringAssign.cursor=targetIndex;
+    S.fingeringAssign.selectedChordNoteIndex=null;
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+    S.fingeringAssign.confirmingChordEventIndex=null;
+
+    prepareFingeringTargetPose(currentFingeringTarget());
+    showFingeringTarget(false);
+    return true;
+  }
+
+  function authoredFingeringCompleteForPlayback(){
+    let sawPhysicalFinger=false;
+
+    for(const e of S.events){
+      if(e.play===false) continue;
+
+      if(e.type==='fingerOn'){
+        if(e.f===0) continue;
+        sawPhysicalFinger=true;
+        if(!validFingerLetter(e.finger)) return false;
+        continue;
+      }
+
+      if(e.type==='chord'){
+        for(const note of e.notes || []){
+          if(note.f===0) continue;
+          sawPhysicalFinger=true;
+          if(!validFingerLetter(note.finger)) return false;
+        }
+        continue;
+      }
+
+      if(e.type==='move'){
+        if(e.movement==='hammer-on' || e.movement==='pull-off'){
+          if(e.to && e.to.f===0) continue;
+        }
+
+        // A movement that physically uses a fretting finger must have one.
+        if(
+          e.movement==='hammer-on' ||
+          e.movement==='pull-off' ||
+          e.movement==='slide' ||
+          e.movement==='bend'
+        ){
+          sawPhysicalFinger=true;
+          if(!validFingerLetter(e.finger)) return false;
+        }
+      }
+    }
+
+    return sawPhysicalFinger;
+  }
+
   function fingeringReady(){
-    const targets=fingeringTargets();
-    if(!targets.length) return false;
-
-    if(!targets.every(t=>validFingerLetter(S.events[t.eventIndex].finger))) return false;
-
+    /*
+      Canonicalize inherited movement fingering first. Chords intentionally
+      break the single-note inheritance chain; all other movement data is then
+      evaluated in its final authored form.
+    */
     propagateFingerAssignments();
-
-    return S.events
-      .filter(isTimedEvent)
-      .every(e=>{
-        if(e.type==='fingerOn') return validFingerLetter(e.finger);
-        if(e.type==='move') return validFingerLetter(e.finger);
-        return true;
-      });
+    return authoredFingeringCompleteForPlayback();
   }
 
   function renderAssignmentBackground(){
@@ -2319,7 +4352,7 @@ body.player .playerOnly{display:grid}
     }
 
     for(const p of frames.values()){
-      makeMark(`frameworkMark ${isInKey(p.s,p.f)?'in':'out'}`,p.s,p.f,noteName(p.s,p.f));
+      makeMark(frameworkMarkClass(p),p.s,p.f,p.f===0?'':noteName(p.s,p.f));
     }
   }
 
@@ -2331,12 +4364,151 @@ body.player .playerOnly{display:grid}
     fingerAssignMark.style.display='none';
     fingerAssignDestinationMark.style.display='none';
     fingerAssignPopup.style.display='none';
+    clearFingeringMovementCues();
+    fingerRects.forEach(el=>el.classList.remove('assignmentChosen'));
+    document.body.classList.remove(
+      'fingeringAssignMode',
+      'chordSelectingNote',
+      'chordChoosingFinger'
+    );
+    chordFingerHitGeometry=[];
+    suppressChordFingerSyntheticClick=false;
+    if(suppressChordFingerSyntheticClickTimer){
+      clearTimeout(suppressChordFingerSyntheticClickTimer);
+      suppressChordFingerSyntheticClickTimer=null;
+    }
     eventPanel.querySelectorAll('.event').forEach(el=>el.classList.remove('selected'));
   }
 
   function currentFingeringTarget(){
     if(!S.fingeringAssign.active) return null;
     return S.fingeringAssign.targets[S.fingeringAssign.cursor] || null;
+  }
+
+  function selectedChordFingeringNote(){
+    const target=currentFingeringTarget();
+    if(!target || target.kind!=='chord') return null;
+
+    const e=S.events[target.eventIndex];
+    const i=S.fingeringAssign.selectedChordNoteIndex;
+
+    if(!e || e.type!=='chord' || !Number.isInteger(i)) return null;
+    return e.notes[i] || null;
+  }
+
+  function handleChordFingeringPositionTap(s,f){
+    const target=currentFingeringTarget();
+    if(!target || target.kind!=='chord') return false;
+
+    const e=S.events[target.eventIndex];
+    if(!e || e.type!=='chord') return false;
+
+    const noteIndex=(e.notes || []).findIndex(note=>note.s===s && note.f===f);
+    if(noteIndex<0){
+      statusEl.innerHTML='<strong>Choose a chord note.</strong><br>Tap one of the displayed chord positions.';
+      return true;
+    }
+
+    const note=e.notes[noteIndex];
+
+    if(note.f===0){
+      statusEl.innerHTML='<strong>Open string</strong><br>This is a phantom position and does not need a finger.';
+      return true;
+    }
+
+    S.fingeringAssign.selectedChordNoteIndex=noteIndex;
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+    S.fingeringAssign.confirmingChordEventIndex=null;
+
+    // This pointer/click sequence belongs to NOTE selection only.
+    // Ignore the synthetic click that may follow this pointerup after the
+    // redraw has switched the app into chordChoosingFinger mode.
+    suppressChordFingerSyntheticClick=true;
+    if(suppressChordFingerSyntheticClickTimer){
+      clearTimeout(suppressChordFingerSyntheticClickTimer);
+    }
+    suppressChordFingerSyntheticClickTimer=setTimeout(()=>{
+      suppressChordFingerSyntheticClick=false;
+      suppressChordFingerSyntheticClickTimer=null;
+    },320);
+
+    showFingeringTarget(false);
+    return true;
+  }
+
+  function hideFingeringConfirmDialog(){
+    fingeringConfirmDialog.classList.remove('on');
+    fingeringConfirmDialog.setAttribute('aria-hidden','true');
+    S.fingeringAssign.confirmingChordEventIndex=null;
+  }
+
+  function showFingeringConfirmDialog(target){
+    if(!target || target.kind!=='chord') return;
+
+    S.fingeringAssign.confirmingChordEventIndex=target.eventIndex;
+    fingeringConfirmDialog.classList.add('on');
+    fingeringConfirmDialog.setAttribute('aria-hidden','false');
+  }
+
+  async function continueAfterConfirmedChord(){
+    const target=currentFingeringTarget();
+    if(
+      !target ||
+      target.kind!=='chord' ||
+      S.fingeringAssign.confirmingChordEventIndex!==target.eventIndex
+    ){
+      hideFingeringConfirmDialog();
+      return;
+    }
+
+    hideFingeringConfirmDialog();
+
+    /*
+      Confirmation is the explicit hand-state boundary requested by the user.
+      The chord's assignments remain stored, but the physical assignment hand
+      returns to its normal starting posture before anything later is shown.
+    */
+    S.fingerPose=blankFingerPose();
+    clearChordBarres();
+
+    const nextTarget=nextFingeringTargetAfter(target);
+
+    if(!nextTarget){
+      finishFingeringAssignment();
+      return;
+    }
+
+    const inherited=inheritedAssignmentEventsAfter(target,nextTarget);
+    for(const e of inherited){
+      await auditionInheritedAssignmentEvent(e);
+      if(!S.fingeringAssign.active) return;
+    }
+
+    S.fingerPose=blankFingerPose();
+    clearChordBarres();
+    S.fingeringAssign.cursor++;
+    S.fingeringAssign.selectedChordNoteIndex=null;
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+
+    prepareFingeringTargetPose(currentFingeringTarget());
+    showFingeringTarget(false);
+  }
+
+  function keepEditingConfirmedChord(){
+    const target=currentFingeringTarget();
+    hideFingeringConfirmDialog();
+
+    if(!target || target.kind!=='chord') return;
+
+    S.fingeringAssign.selectedChordNoteIndex=null;
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+    S.fingerPose=blankFingerPose();
+
+    // Show the completed saved chord hand so it can be inspected or edited.
+    showFingeringTarget(false);
+    statusEl.innerHTML=
+      '<strong>Chord fingering retained for editing</strong><br>'+
+      'Tap a chord note to change it, use Undo, or select Continue by completing the chord again.';
   }
 
   function showFingeringTarget(repeatPosition=false){
@@ -2348,70 +4520,119 @@ body.player .playerOnly{display:grid}
 
     renderAssignmentBackground();
 
+    const targetEvent=S.events[target.eventIndex];
+
     if(fingerAssignFlashTimer){
       clearTimeout(fingerAssignFlashTimer);
       fingerAssignFlashTimer=null;
     }
 
-    const p=shellPoint(target.pos.s,target.pos.f);
-    fingerAssignMark.textContent=noteName(target.pos.s,target.pos.f);
-    fingerAssignMark.style.left=p.x+'px';
-    fingerAssignMark.style.top=p.y+'px';
+    fingerAssignDestinationMark.style.display='none';
+    fingerAssignPopup.style.display='none';
+    fingerRects.forEach(el=>el.classList.remove('assignmentChosen'));
 
-    // If two consecutive assignments use the same physical note, briefly
-    // remove the pink dot before restoring it. This makes the completed
-    // prior assignment visually unmistakable.
-    if(repeatPosition){
+    document.body.classList.add('fingeringAssignMode');
+    document.body.classList.remove('chordSelectingNote','chordChoosingFinger');
+
+    // A fresh chord assignment draw below rebuilds this map. For ordinary
+    // fingering targets, ensure no stale chord geometry remains active.
+    if(target.kind!=='chord') chordFingerHitGeometry=[];
+
+    if(target.kind==='chord' && targetEvent && targetEvent.type==='chord'){
+      const selectedIndex=S.fingeringAssign.selectedChordNoteIndex;
+
+      // The chord remains a complete visible hand state. Just like the
+      // standalone prototype:
+      //   unassigned fretted note = green
+      //   assigned fretted note = pink
+      //   open string = pink phantom ring
+      //   selected note = white outline
+      for(let i=0;i<targetEvent.notes.length;i++){
+        const note=targetEvent.notes[i];
+        const assigned=note.f===0 || validFingerLetter(note.finger);
+
+        let cls;
+        if(note.f===0){
+          cls=fingerMarkClass(note);
+        }else if(assigned){
+          cls=fingerMarkClass(note);
+        }else{
+          cls='fingerMark chordUnassigned';
+        }
+
+        if(i===selectedIndex) cls+=' chordSelected';
+
+        makeMark(
+          cls,
+          note.s,
+          note.f,
+          note.f===0?'':noteName(note.s,note.f)
+        );
+      }
+
+      // The old single-target pink assignment dot is intentionally not used
+      // for chords. The user chooses the target directly on the fretboard.
       fingerAssignMark.style.display='none';
-      fingerAssignFlashTimer=setTimeout(()=>{
-        if(!S.fingeringAssign.active) return;
-        const nowTarget=currentFingeringTarget();
-        if(!nowTarget) return;
-        if(nowTarget.pos.s!==target.pos.s || nowTarget.pos.f!==target.pos.f) return;
+      clearFingeringMovementCues();
+
+      drawChordAssignmentHand(targetEvent.notes,false);
+      S.fingerPose=chordApproxFingerPose(targetEvent.notes);
+
+      const selected=selectedChordFingeringNote();
+      if(selected){
+        document.body.classList.add('chordChoosingFinger');
+        statusEl.innerHTML=
+          `<strong>${noteName(selected.s,selected.f)} selected</strong><br>`+
+          'Now tap the finger you want to assign.';
+      }else{
+        document.body.classList.add('chordSelectingNote');
+
+        const remaining=(targetEvent.notes || []).filter(note=>
+          note.f>0 && !validFingerLetter(note.finger)
+        ).length;
+
+        if(remaining===0){
+          statusEl.innerHTML=
+            '<strong>Chord fingering complete</strong><br>'+
+            'Saved fingering is shown. Tap any chord note to edit it, or select another sequence row.';
+        }else{
+          statusEl.innerHTML=
+            `<strong>Chord fingering</strong><br>`+
+            `Tap the chord position you want to assign, then tap a finger. `+
+            `${remaining} fretted position${remaining===1?'':'s'} remaining.`;
+        }
+      }
+
+    }else{
+      // Existing single-note/movement workflow is unchanged.
+      const p=shellPoint(target.pos.s,target.pos.f);
+      fingerAssignMark.textContent=target.pos.f===0?'':noteName(target.pos.s,target.pos.f);
+      fingerAssignMark.classList.toggle('openPhantom',target.pos.f===0);
+      fingerAssignMark.style.left=p.x+'px';
+      fingerAssignMark.style.top=p.y+'px';
+
+      if(repeatPosition){
+        fingerAssignMark.style.display='none';
+        fingerAssignFlashTimer=setTimeout(()=>{
+          if(!S.fingeringAssign.active) return;
+          const nowTarget=currentFingeringTarget();
+          if(!nowTarget) return;
+          if(nowTarget.pos.s!==target.pos.s || nowTarget.pos.f!==target.pos.f) return;
+          fingerAssignMark.style.display='flex';
+          fingerAssignFlashTimer=null;
+        },150);
+      }else{
         fingerAssignMark.style.display='flex';
-        fingerAssignFlashTimer=null;
-      },150);
-    }else{
-      fingerAssignMark.style.display='flex';
+      }
+
+      showFingeringMovementCues(target);
+
+      clearChordBarres();
+      if(!hasEstablishedHandPosition(S.fingerPose)){
+        S.fingerPose=assignmentChoicePose(target);
+      }
+      drawFingerPose(S.fingerPose,false);
     }
-
-    if(fingerAssignMovement){
-      fingerAssignMovement.textContent=fingeringTargetLabel(target);
-    }
-
-    // If this finger position leads directly into a movement, show its
-    // destination as a much smaller pink dot so the Admin can keep spatial
-    // orientation without confusing it with the finger being assigned.
-    const upcomingMove=nextMovementFromTarget(target);
-    if(
-      upcomingMove &&
-      ['hammer-on','pull-off','slide','bend'].includes(upcomingMove.movement)
-    ){
-      const dest=shellPoint(upcomingMove.to.s,upcomingMove.to.f);
-      fingerAssignDestinationMark.style.left=dest.x+'px';
-      fingerAssignDestinationMark.style.top=dest.y+'px';
-      fingerAssignDestinationMark.style.display='block';
-    }else{
-      fingerAssignDestinationMark.style.display='none';
-    }
-
-    const popupWidth=88;
-    const gap=29;
-    const shellWidth=shell.clientWidth || 183;
-    let left=p.x+gap;
-
-    // Put the popup on the left for notes near the high-E side.
-    if(p.x > shellWidth*.58) left=p.x-popupWidth-gap;
-
-    left=Math.max(-10,left);
-    const popupHeight=6 + 20 + 4 + 4*27 + 3*4 + 6;
-    let top=p.y-popupHeight/2;
-    const maxTop=Math.max(2,(shell.clientHeight||642)-popupHeight-2);
-    top=Math.max(2,Math.min(maxTop,top));
-
-    fingerAssignPopup.style.left=left+'px';
-    fingerAssignPopup.style.top=top+'px';
-    fingerAssignPopup.style.display='grid';
 
     eventPanel.querySelectorAll('.event').forEach(el=>el.classList.remove('selected'));
     const row=eventPanel.querySelector(`.event[data-original-index="${target.eventIndex}"]`);
@@ -2424,13 +4645,21 @@ body.player .playerOnly{display:grid}
   function finishFingeringAssignment(){
     if(!S.fingeringAssign.active) return;
 
+    hideFingeringConfirmDialog();
     propagateFingerAssignments();
     S.fingeringAssign.active=false;
     S.fingeringAssign.targets=[];
     S.fingeringAssign.cursor=0;
+    S.fingeringAssign.selectedChordNoteIndex=null;
+    S.fingeringAssign.assignmentHistory=[];
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+    S.fingeringAssign.confirmingChordEventIndex=null;
 
     fingeringBtn.classList.remove('on');
     hideFingerAssignmentOverlay();
+    S.fingerPose=blankFingerPose();
+    clearChordBarres();
+    drawFingerPose(S.fingerPose,true);
     renderEventList();
 
     // End with no assignment-pink showing, as requested.
@@ -2443,16 +4672,28 @@ body.player .playerOnly{display:grid}
     S.fingeringAssign.active=false;
     S.fingeringAssign.targets=[];
     S.fingeringAssign.cursor=0;
+    S.fingeringAssign.selectedChordNoteIndex=null;
+    S.fingeringAssign.assignmentHistory=[];
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+    S.fingeringAssign.confirmingChordEventIndex=null;
+    hideFingeringConfirmDialog();
+    document.body.classList.remove('chordSelectingNote','chordChoosingFinger');
     fingeringBtn.classList.remove('on');
     hideFingerAssignmentOverlay();
+    S.fingerPose=blankFingerPose();
+    clearChordBarres();
+    drawFingerPose(S.fingerPose,true);
 
     if(render) renderAuthor();
   }
 
-  function startFingeringAssignment(){
+  async function startFingeringAssignment(){
     exitSequencePreview();
+    hideFingeringConfirmDialog();
     S.pendingMove=null;
     updateMoveButtons();
+
+    propagateFingerAssignments();
 
     const targets=fingeringTargets();
     if(!targets.length){
@@ -2460,23 +4701,166 @@ body.player .playerOnly{display:grid}
       return;
     }
 
-    clearFingerAssignmentData();
+    /*
+      Fingering is persistent clip data. Re-entering this mode MUST NOT clear
+      anything that has already been assigned.
+    */
+    const firstIncomplete=firstIncompleteFingeringTargetIndex(targets);
+    const initialCursor=
+      firstIncomplete>=0
+        ? firstIncomplete
+        : targets.length-1;
 
     S.fingeringAssign.active=true;
     S.fingeringAssign.targets=targets;
-    S.fingeringAssign.cursor=0;
+    S.fingeringAssign.cursor=initialCursor;
+    S.fingeringAssign.selectedChordNoteIndex=null;
+    S.fingeringAssign.assignmentHistory=[];
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+    S.fingeringAssign.confirmingChordEventIndex=null;
+
     fingeringBtn.classList.add('on');
+    document.body.classList.add('fingeringAssignMode');
 
     renderEventList();
-    showFingeringTarget();
+
+    const target=currentFingeringTarget();
+    prepareFingeringTargetPose(target);
+
+    /*
+      Preserve the useful open-string pre-roll only when starting at the first
+      fingering target. When resuming an already-partially-fingered clip later
+      in the sequence, jump directly to the unfinished position.
+    */
+    if(initialCursor===0){
+      for(let i=0;i<target.eventIndex;i++){
+        const e=S.events[i];
+
+        if(e.type==='frameworkOn' || e.type==='frameworkOff' || e.play===false){
+          continue;
+        }
+
+        await auditionInheritedAssignmentEvent(e);
+        if(!S.fingeringAssign.active) return;
+      }
+
+      // Leading resolved events must not displace the intended fresh starting
+      // posture for the actual assignment target.
+      prepareFingeringTargetPose(target);
+    }
+
+    showFingeringTarget(false);
+
+    if(firstIncomplete<0){
+      statusEl.innerHTML=
+        '<strong>Fingering complete</strong><br>'+
+        'Opened at the final fingering event. Use the sequence list to jump to any saved assignment.';
+    }
   }
 
-  function chooseAssignedFinger(letter){
+  async function chooseAssignedFinger(letter){
     const target=currentFingeringTarget();
     if(!target) return;
 
     const e=S.events[target.eventIndex];
+
+    if(target.kind==='chord'){
+      const noteIndex=S.fingeringAssign.selectedChordNoteIndex;
+
+      if(!Number.isInteger(noteIndex)){
+        statusEl.innerHTML=
+          '<strong>Choose a chord position first.</strong><br>'+
+          'Tap the note on the fretboard, then tap the finger.';
+        return;
+      }
+
+      const note=e.notes[noteIndex];
+      if(!note || note.f===0){
+        statusEl.innerHTML=
+          '<strong>Open strings need no finger.</strong><br>'+
+          'Choose a fretted chord position.';
+        return;
+      }
+
+      // Same finger may cover multiple notes only as one same-fret barre.
+      const conflict=(e.notes || []).some((other,i)=>
+        i!==noteIndex &&
+        other.f>0 &&
+        validFingerLetter(other.finger) &&
+        fingerIndex(other.finger)===fingerIndex(letter) &&
+        other.f!==note.f
+      );
+
+      if(conflict){
+        statusEl.innerHTML=
+          '<strong>Finger already used on another fret.</strong><br>'+
+          'The same finger can cover multiple chord notes only when they form a barre on one fret.';
+        return;
+      }
+
+      pushFingeringSnapshot();
+
+      note.finger=letter;
+      propagateFingerAssignments();
+
+      const chosenIndex=fingerIndex(letter);
+      fingerRects.forEach((el,i)=>
+        el.classList.toggle('assignmentChosen',i===chosenIndex)
+      );
+
+      // Audition the particular note just assigned, but draw the entire chord
+      // hand with the validated geometry engine.
+      const actionTarget={
+        ...target,
+        chordNoteIndex:noteIndex,
+        pos:{s:note.s,f:note.f}
+      };
+
+      await auditionAssignedTarget(actionTarget);
+      if(!S.fingeringAssign.active) return;
+
+      renderEventList();
+
+      if(!chordFingeringComplete(e)){
+        // Stay on this chord. No automatic choice of the next note:
+        // the user decides which chord member to assign next.
+        S.fingeringAssign.selectedChordNoteIndex=null;
+        showFingeringTarget(false);
+        return;
+      }
+
+      // The chord is fully assigned. Keep the complete hand on screen
+      // and require explicit confirmation before proceeding.
+      S.fingeringAssign.selectedChordNoteIndex=null;
+      S.fingeringAssign.completedChordReviewEventIndex=null;
+      renderEventList();
+      showFingeringTarget(false);
+      showFingeringConfirmDialog(target);
+      return;
+    }
+
+    // Existing single-note/movement assignment behavior.
+    pushFingeringSnapshot();
+
     e.finger=letter;
+
+    propagateFingerAssignments();
+
+    const chosenIndex=fingerIndex(letter);
+    fingerRects.forEach((el,i)=>
+      el.classList.toggle('assignmentChosen',i===chosenIndex)
+    );
+
+    const nextTarget=nextFingeringTargetAfter(target);
+
+    await auditionAssignedTarget(target);
+    if(!S.fingeringAssign.active) return;
+
+    const inherited=inheritedAssignmentEventsAfter(target,nextTarget);
+    for(const move of inherited){
+      await auditionInheritedAssignmentEvent(move);
+      if(!S.fingeringAssign.active) return;
+    }
 
     const priorPos=clonePos(target.pos);
 
@@ -2485,15 +4869,17 @@ body.player .playerOnly{display:grid}
 
     if(S.fingeringAssign.cursor>=S.fingeringAssign.targets.length){
       finishFingeringAssignment();
-    }else{
-      const nextTarget=currentFingeringTarget();
-      const repeatPosition=!!(
-        nextTarget &&
-        nextTarget.pos.s===priorPos.s &&
-        nextTarget.pos.f===priorPos.f
-      );
-      showFingeringTarget(repeatPosition);
+      return;
     }
+
+    const upcoming=currentFingeringTarget();
+    const repeatPosition=!!(
+      upcoming &&
+      upcoming.pos.s===priorPos.s &&
+      upcoming.pos.f===priorPos.f
+    );
+
+    showFingeringTarget(repeatPosition);
   }
 
   function fingerSuffix(e){
@@ -2501,8 +4887,62 @@ body.player .playerOnly{display:grid}
     return f?` [${f}]`:'';
   }
 
+  function initialPlayerFrameworkState(){
+    const st=blankState();
+
+    // Show the framework that exists at the beginning of the lesson before
+    // the first timed Dynamic/Movement event. Later framework changes still
+    // occur at their authored positions during playback.
+    for(const e of S.events){
+      if(isTimedEvent(e)) break;
+      if(e.type==='frameworkOn' || e.type==='frameworkOff'){
+        applyEventInstant(st,e);
+      }
+    }
+
+    return st;
+  }
+
+  function initialAssignedRestPoseForPlayback(){
+    const p=blankFingerPose();
+
+    for(const e of S.events){
+      if(e.type==='fingerOn' && e.f>0 && validFingerLetter(e.finger)){
+        const fi=fingerIndex(e.finger);
+        p.baseFret=clampFingerBase(e.f,fi);
+        p.activeString=e.s;
+        return p;
+      }
+
+      if(e.type==='chord'){
+        const layout=computeChordHandLayout(e.notes || []);
+        const fretted=(e.notes || []).filter(n=>n.f>0 && validFingerLetter(n.finger));
+        if(fretted.length){
+          p.baseFret=layout.baseFret;
+          p.activeString=fretted[fretted.length-1].s;
+          return p;
+        }
+      }
+
+      if(
+        e.type==='move' &&
+        e.to &&
+        e.to.f>0 &&
+        validFingerLetter(e.finger)
+      ){
+        const fi=fingerIndex(e.finger);
+        p.baseFret=clampFingerBase(e.to.f,fi);
+        p.activeString=e.to.s;
+        return p;
+      }
+    }
+
+    return p;
+  }
+
   function playerEventLabel(e){
     if(e.type==='fingerOn') return noteName(e.s,e.f);
+    if(e.type==='chord') return (e.notes || []).map(n=>noteName(n.s,n.f)).join(' · ');
     if(e.type==='move' && e.to) return noteName(e.to.s,e.to.f);
     return '';
   }
@@ -2511,6 +4951,13 @@ body.player .playerOnly{display:grid}
     if(e.type==='frameworkOn') return `Frame + ${noteName(e.s,e.f)}`;
     if(e.type==='frameworkOff') return `Frame − ${noteName(e.s,e.f)}`;
     if(e.type==='fingerOn') return `Pluck ${noteName(e.s,e.f)}${fingerSuffix(e)}`;
+    if(e.type==='chord'){
+      const names=(e.notes || []).map(n=>{
+        const f=fingerLetter(n.finger);
+        return `${noteName(n.s,n.f)}${f?` [${f}]`:''}`;
+      });
+      return `Chord ${names.join(' · ')}`;
+    }
     if(e.type==='move'){
       const suffix=(e.movement==='bend' && e.bendPhase==='release')?' release':'';
       return `${prettyMove(e.movement)}${suffix} ${noteName(e.from.s,e.from.f)}→${noteName(e.to.s,e.to.f)}${fingerSuffix(e)}`;
@@ -2552,18 +4999,34 @@ body.player .playerOnly{display:grid}
       return;
     }
 
-    eventPanel.innerHTML=visible.map(({e,originalIndex},i)=>
-      `<div class="event" data-original-index="${originalIndex}"><span class="n">${i+1}</span>${describe(e)}</div>`
-    ).join('');
+    const targetEventIndexes=S.fingeringAssign.active
+      ? new Set(S.fingeringAssign.targets.map(target=>target.eventIndex))
+      : new Set();
+
+    eventPanel.innerHTML=visible.map(({e,originalIndex},i)=>{
+      const navClass=targetEventIndexes.has(originalIndex)
+        ? ' fingeringTargetRow'
+        : '';
+
+      return `<div class="event${navClass}" data-original-index="${originalIndex}"><span class="n">${i+1}</span>${describe(e)}</div>`;
+    }).join('');
 
     eventPanel.querySelectorAll('.event[data-original-index]').forEach(row=>{
       bindTap(row,()=>{
         const idx=Number(row.dataset.originalIndex);
+
+        if(S.fingeringAssign.active){
+          jumpToFingeringEvent(idx);
+          return;
+        }
+
         previewSequenceState(idx,row);
       });
     });
 
-    eventPanel.scrollTop=eventPanel.scrollHeight;
+    if(!S.fingeringAssign.active){
+      eventPanel.scrollTop=eventPanel.scrollHeight;
+    }
   }
 
   function toolHelp(){
@@ -2583,6 +5046,9 @@ body.player .playerOnly{display:grid}
     if(entry && entry.kind==='bendRing')
       return '<strong>Pink ring</strong><br>This is a bent pitch. Choose Bend, then tap its original fret to release it.';
 
+    const pinkCount=currentPinkPositions().length;
+    if(pinkCount>1)
+      return '<strong>Pink notes</strong><br>Press Chord to group the visible pink notes into one simultaneous event, or choose another movement.';
     return '<strong>Pink finger</strong><br>Tap an empty position for a pluck. Tap an existing pink position to edit it off. Or choose a movement, then tap the destination.';
   }
 
@@ -2594,14 +5060,29 @@ body.player .playerOnly{display:grid}
   }
 
   function setTool(tool){
-    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
+    const wasAssigning=S.fingeringAssign.active;
+    if(wasAssigning) cancelFingeringAssignment(false);
+
     exitSequencePreview();
     S.tool=tool;
     document.querySelectorAll('.noteTool').forEach(b=>b.classList.toggle('on',b.dataset.tool===tool));
+
+    if(wasAssigning){
+      // Restore the ordinary authored note display only after the user
+      // explicitly chooses to leave Fingering.
+      renderAuthor();
+    }
+
+    updateChordButton();
     statusEl.innerHTML=toolHelp();
   }
 
   function armMove(kind){
+    if(kind==='chord'){
+      groupCurrentPinkAsChord();
+      return;
+    }
+
     if(S.fingeringAssign.active) cancelFingeringAssignment(false);
     exitSequencePreview();
     if(S.tool!=='finger') setTool('finger');
@@ -2621,8 +5102,13 @@ body.player .playerOnly{display:grid}
 
   function updateMoveButtons(){
     document.querySelectorAll('.moveBtn').forEach(b=>{
-      b.classList.toggle('on',b.dataset.move===S.pendingMove);
+      if(b.dataset.move==='chord'){
+        b.classList.remove('on');
+      }else{
+        b.classList.toggle('on',b.dataset.move===S.pendingMove);
+      }
     });
+    updateChordButton();
   }
 
   function isFrameworkEvent(e){
@@ -2651,27 +5137,27 @@ body.player .playerOnly{display:grid}
 
   function undoFingeringAssignment(){
     if(!S.fingeringAssign.active) return false;
-    if(S.fingeringAssign.cursor<=0) return false;
 
-    S.fingeringAssign.cursor--;
-    const target=currentFingeringTarget();
-    if(!target) return false;
+    const snapshot=S.fingeringAssign.assignmentHistory.pop();
+    if(!snapshot) return false;
 
-    const e=S.events[target.eventIndex];
-    delete e.finger;
-    delete e.fromFinger;
-    delete e.toFinger;
-
-    renderEventList();
-    showFingeringTarget(false);
-    return true;
+    return restoreFingeringSnapshot(snapshot);
   }
 
   function clearFingeringAssignmentsOnly(){
     if(!S.fingeringAssign.active) return false;
 
+    pushFingeringSnapshot();
+    hideFingeringConfirmDialog();
+
     clearFingerAssignmentData();
+    S.fingeringAssign.targets=fingeringTargets();
     S.fingeringAssign.cursor=0;
+    S.fingeringAssign.selectedChordNoteIndex=null;
+    S.fingeringAssign.completedChordReviewEventIndex=null;
+    S.fingeringAssign.confirmingChordEventIndex=null;
+
+    prepareFingeringTargetPose(currentFingeringTarget());
     renderEventList();
     showFingeringTarget(false);
     return true;
@@ -2730,7 +5216,10 @@ body.player .playerOnly{display:grid}
     // Dynamic mode: Clear removes Dynamic notes/movements/edit events only.
     else if(S.tool==='finger'){
       changed=clearMatchingEvents(isDynamicEvent);
-      if(changed) S.nextBendId=1;
+      if(changed){
+        S.nextBendId=1;
+        S.nextChordId=1;
+      }
     }
 
     S.pendingMove=null;
@@ -2778,40 +5267,89 @@ body.player .playerOnly{display:grid}
 
   function sleep(ms){return new Promise(r=>S.timer=setTimeout(r,ms))}
 
-  async function animateMove(e){
-    // Legacy visual fallback only. Even without complete fingering data,
-    // movement-specific articulation audio is preserved.
-    renderPlayback();
+  async function animateMove(e,run){
+    // Unassigned-fingering playback now uses the same movement/audio timing
+    // as assigned-fingering playback. Only the hand/finger rectangles are omitted.
+    const start=performance.now();
 
-    if(e.movement==='slide'){
-      playSlideArticulation(e,S.runId);
-    }else if(e.movement==='bend'){
-      if(e.bendPhase==='release') releaseBendArticulation(e);
-      else startBendArticulation(e);
-    }
-
-    await sleep(850);
-
-    applyEventInstant(S.playback,e);
     renderPlayback();
 
     if(e.movement==='hammer-on'){
+      await connectedMarkerMove(e.to,205,run);
+      if(run!==S.runId) return;
       playHammerOnArticulation(e);
+
     }else if(e.movement==='pull-off'){
-      playPullOffArticulation(e);
+      // Release first: white burst + click at the originating finger.
+      playPullOffRelease(e);
+      await sleep(55);
+      if(run!==S.runId) return;
+
+      // Then move the pink marker to the resulting note.
+      await connectedMarkerMove(e.to,205,run);
+      if(run!==S.runId) return;
+
+      // Sound the lower note only after the marker arrives.
+      playPullOffResult(e);
+
+    }else if(e.movement==='slide'){
+      // Squeak and quantized transition notes begin while the pink marker moves,
+      // exactly as they do when fingering has been assigned.
+      const audioPromise=playSlideArticulation(e,run);
+      await connectedMarkerMove(e.to,460,run);
+      await audioPromise;
+      if(run!==S.runId) return;
+
+    }else if(e.movement==='bend'){
+      // Bend/release audio and the physical-dot/ring movement begin together.
+      if(e.bendPhase==='release'){
+        releaseBendArticulation(e);
+      }else{
+        startBendArticulation(e);
+      }
+
+      await bendMarkerMove(e,460,run);
+      if(run!==S.runId) return;
     }
 
-    await sleep(150);
+    // Update the playback state without redrawing here. This preserves the
+    // just-completed animated marker geometry (especially the bend's physical
+    // dot + phantom ring), matching assigned-fingering playback.
+    applyEventInstant(S.playback,e);
+
+    const elapsed=performance.now()-start;
+    if(elapsed<1000) await sleep(1000-elapsed);
   }
 
   function renderPlaybackFrameworkOnly(){
     document.querySelectorAll('.frameworkMark').forEach(x=>x.remove());
     for(const p of S.playback.framework.values()){
-      makeMark(`frameworkMark ${isInKey(p.s,p.f)?'in':'out'}`,p.s,p.f,noteName(p.s,p.f));
+      makeMark(frameworkMarkClass(p),p.s,p.f,p.f===0?'':noteName(p.s,p.f));
     }
   }
 
   async function playOne(e,run){
+    if(e.type==='chord'){
+      applyEventInstant(S.playback,e);
+      renderPlayback();
+
+      if(S.useAssignedFingering){
+        showPlaybackFingers();
+        drawChordHand(e.notes || [],false);
+        S.fingerPose=chordApproxFingerPose(e.notes || []);
+      }else{
+        clearChordBarres();
+      }
+
+      // All chord samples are triggered in the same JavaScript turn.
+      for(const note of e.notes || []){
+        playStringSample(note.s,note.f,.24,.66);
+      }
+
+      await sleep(1000);
+      return;
+    }
+
     if(S.useAssignedFingering && validFingerLetter(e.finger)){
       await playFingeredOne(e,run);
       if(run!==S.runId) return;
@@ -2820,7 +5358,7 @@ body.player .playerOnly{display:grid}
     }
 
     if(e.type==='move'){
-      await animateMove(e);
+      await animateMove(e,run);
       return;
     }
 
@@ -2840,15 +5378,20 @@ body.player .playerOnly{display:grid}
     document.body.classList.remove('fingeringPlayback');
 
     const run=++S.runId;
-    S.playback=blankState();
+    S.playback=initialPlayerFrameworkState();
     moveSvg.innerHTML='';
     document.querySelectorAll('.moveLabel').forEach(x=>x.remove());
+    propagateFingerAssignments();
     S.useAssignedFingering=fingeringReady();
-    S.fingerPose=blankFingerPose();
+    S.fingerPose=S.useAssignedFingering
+      ? initialAssignedRestPoseForPlayback()
+      : blankFingerPose();
 
     if(S.useAssignedFingering){
-      document.body.classList.add('fingeringPlayback');
+      showPlaybackFingers();
       drawFingerPose(S.fingerPose,true);
+    }else{
+      hidePlaybackFingers();
     }
 
     renderPlayback();
@@ -2881,7 +5424,13 @@ body.player .playerOnly{display:grid}
             const ring=currentPlaybackBendRing();
             if(dot) dot.remove();
             if(ring) ring.remove();
-            S.fingerPose=blankFingerPose();
+
+            // Release the note but keep the hand at its last established
+            // physical position. This is especially important when the next
+            // sounding event is an open string.
+            S.fingerPose=nextFingerPoseForEvent(S.fingerPose,e);
+            showPlaybackFingers();
+            clearChordBarres();
             drawFingerPose(S.fingerPose,false);
           }
         }else{
@@ -2910,46 +5459,257 @@ body.player .playerOnly{display:grid}
     moveSvg.innerHTML='';
     document.querySelectorAll('.moveLabel').forEach(x=>x.remove());
     document.body.classList.remove('fingerDemo');
-    document.body.classList.remove('fingeringPlayback');
+    hidePlaybackFingers();
+    clearChordBarres();
     S.useAssignedFingering=false;
     S.fingerPose=blankFingerPose();
     drawFingerPose(S.fingerPose,true);
     if(reset) progressFill.style.width='0%';
 
     if(document.body.classList.contains('player')){
-      S.playback=blankState();
+      S.playback=initialPlayerFrameworkState();
       renderPlayback();
-      statusEl.innerHTML='<strong>Player</strong><br>Press Play. Assigned fingering is used automatically when the sequence has a complete fingering pass.';
+      statusEl.innerHTML='<strong>Player</strong><br>Framework ready. Press Play to begin.';
     }else{
       renderAuthor();
     }
   }
 
-  function enterAdmin(){
-    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
-    clearSequenceSelection();
-    stopPlayback();
+  function closePlayerKeyMenu(){
+    playerKeyMenu.classList.remove('on');
+  }
+
+  function buildPlayerKeyMenu(){
+    playerKeyMenu.innerHTML='';
+    for(const [name,pc] of KEYS){
+      const b=document.createElement('button');
+      b.type='button';
+      b.className='clipKeyChoice';
+      b.dataset.pc=pc;
+      b.textContent=name;
+      bindTap(b,()=>{
+        closePlayerKeyMenu();
+        loadPlayerKey(Number(pc));
+      });
+      playerKeyMenu.appendChild(b);
+    }
+  }
+
+  function showClipDialog({
+    title='Open-string version required',
+    text='You must include an open-string version before this clip can be approved.',
+    primary='Create Open String Version',
+    onPrimary=createOpenStringVersion
+  }={}){
+    clipDialogTitle.textContent=title;
+    clipDialogText.textContent=text;
+    clipDialogPrimary.textContent=primary;
+    clipDialogPrimary._clipAction=onPrimary;
+    clipDialog.classList.add('on');
+    clipDialog.setAttribute('aria-hidden','false');
+  }
+
+  function hideClipDialog(){
+    clipDialog.classList.remove('on');
+    clipDialog.setAttribute('aria-hidden','true');
+    clipDialogPrimary._clipAction=null;
+  }
+
+  function createOpenStringVersion(){
+    hideClipDialog();
+    closePlayerKeyMenu();
+
+    if(!S.clipDraft.original){
+      // If Create Open is pressed during the first Player visit, the original
+      // has already been snapshotted by enterPlayer(). This is just defensive.
+      S.clipDraft.original={
+        keyPc:mod12(S.keyPc),
+        events:cloneEvents(S.events)
+      };
+    }
+
+    const original=S.clipDraft.original;
+    if(!original.events.length){
+      statusEl.innerHTML='<strong>No clip events to convert.</strong>';
+      return;
+    }
+
+    const shift=lowestFretInEvents(original.events);
+    S.clipDraft.openShift=shift;
+
+    const openEvents=shiftEventsByFrets(original.events,-shift);
+    clearFingerAssignmentsInEvents(openEvents);
+
+    const openKey=mod12(original.keyPc-shift);
+    S.clipDraft.open={
+      keyPc:openKey,
+      events:cloneEvents(openEvents)
+    };
+    S.clipDraft.editingVariant='open';
+
+    stopPlayback(false);
     document.body.classList.remove('player');
     document.getElementById('adminTab').classList.add('on');
     document.getElementById('playerTab').classList.remove('on');
-    renderAuthor();
-    statusEl.innerHTML=toolHelp();
+
+    S.events=cloneEvents(openEvents);
+    S.keyPc=openKey;
+    keySel.value=String(openKey);
+    S.author=blankState();
+    rebuildAuthor();
+
+    statusEl.innerHTML=`<strong>Open-string version</strong><br>Shifted ${shift} fret${shift===1?'':'s'} toward the nut. Assign fingering to the remaining fretted notes. Open strings are phantom rings and require no finger.`;
+
+    // Immediately open fingering assignment as requested.
+    startFingeringAssignment();
+  }
+
+  function approveClip(){
+    closePlayerKeyMenu();
+
+    // Player may currently be displaying a transposition; the authoritative
+    // authored variants are stored in clipDraft.
+    if(!S.clipDraft.original){
+      showClipDialog({
+        title:'Nothing to approve',
+        text:'Create and preview an animation first.',
+        primary:'OK',
+        onPrimary:hideClipDialog
+      });
+      return;
+    }
+
+    if(!S.clipDraft.open){
+      showClipDialog({
+        title:'Open-string version required',
+        text:'You must include an open-string version before this clip can be approved.',
+        primary:'Create Open String Version',
+        onPrimary:createOpenStringVersion
+      });
+      return;
+    }
+
+    if(!variantFingeringComplete(S.clipDraft.original.events)){
+      showClipDialog({
+        title:'Original fingering incomplete',
+        text:'Assign fingering to the fretted notes in the original version before approving this clip.',
+        primary:'Return to Admin',
+        onPrimary:()=>{
+          hideClipDialog();
+          S.clipDraft.editingVariant='original';
+          enterAdmin();
+          startFingeringAssignment();
+        }
+      });
+      return;
+    }
+
+    if(!variantFingeringComplete(S.clipDraft.open.events)){
+      showClipDialog({
+        title:'Open-string fingering incomplete',
+        text:'Complete the fingering for the open-string version before approving this clip. Open strings themselves do not require a finger.',
+        primary:'Return to Open Admin',
+        onPrimary:()=>{
+          hideClipDialog();
+          S.clipDraft.editingVariant='open';
+          enterAdmin();
+          startFingeringAssignment();
+        }
+      });
+      return;
+    }
+
+    const packet=buildApprovedClipPacket();
+    S.approvedClip=packet;
+
+    try{
+      sessionStorage.setItem('lessonBuilderApprovedClip',JSON.stringify(packet));
+    }catch(_){}
+
+    statusEl.innerHTML='<strong>Clip approved</strong><br>Original and open-string variants are saved for this session. Use Recall to verify the packet.';
+  }
+
+  function recallApprovedClip(){
+    closePlayerKeyMenu();
+
+    let packet=S.approvedClip;
+    if(!packet){
+      try{
+        const raw=sessionStorage.getItem('lessonBuilderApprovedClip');
+        if(raw) packet=JSON.parse(raw);
+      }catch(_){}
+    }
+
+    if(!packet || !packet.original || !packet.open){
+      statusEl.innerHTML='<strong>No approved clip in this session.</strong>';
+      return;
+    }
+
+    S.approvedClip=packet;
+    S.clipDraft.original={
+      keyPc:mod12(packet.original.keyPc),
+      events:cloneEvents(packet.original.events)
+    };
+    S.clipDraft.open={
+      keyPc:mod12(packet.open.keyPc),
+      events:cloneEvents(packet.open.events)
+    };
+    S.clipDraft.openShift=packet.openShift;
+    S.clipDraft.editingVariant='original';
+
+    // Recall deliberately opens in the original authored position.
+    loadPlayerKey(packet.original.keyPc,{quiet:true});
+    statusEl.innerHTML='<strong>Approved clip recalled</strong><br>Loaded in its original position. Change Key to test transposition and the authored open-string version.';
+  }
+
+  function enterAdmin(){
+    if(S.fingeringAssign.active) cancelFingeringAssignment(false);
+    clearSequenceSelection();
+    closePlayerKeyMenu();
+    stopPlayback();
+
+    document.body.classList.remove('player');
+    document.getElementById('adminTab').classList.add('on');
+    document.getElementById('playerTab').classList.remove('on');
+
+    // Player may have been showing a transposed view. Restore the authored
+    // variant rather than editing that temporary transposition.
+    if(!restoreEditingVariantToAdmin()){
+      renderAuthor();
+    }
+
+    statusEl.innerHTML=S.clipDraft.editingVariant==='open'
+      ? '<strong>Open-string version</strong><br>Edit the authored open-position variant.'
+      : toolHelp();
   }
 
   function enterPlayer(){
     if(S.fingeringAssign.active) cancelFingeringAssignment(false);
+
     propagateFingerAssignments();
+    snapshotVariantFromAdmin();
+
     stopPlayback();
     document.body.classList.add('player');
     document.getElementById('playerTab').classList.add('on');
     document.getElementById('adminTab').classList.remove('on');
-    S.playback=blankState();
-    renderPlayback();
-    statusEl.innerHTML='<strong>Player</strong><br>Press Play. Assigned fingering is used automatically when the sequence has a complete fingering pass.';
+
+    // When reviewing the newly authored open version, show that version.
+    // Otherwise Player always opens at the original authored position.
+    const preferred=S.clipDraft.editingVariant==='open' && S.clipDraft.open
+      ? S.clipDraft.open.keyPc
+      : S.clipDraft.original.keyPc;
+
+    loadPlayerKey(preferred,{quiet:true});
+    statusEl.innerHTML=S.clipDraft.editingVariant==='open'
+      ? '<strong>Player — open-string version</strong><br>Press Play to verify it, then Approve Clip.'
+      : '<strong>Player</strong><br>Original position. Press Play to begin.';
   }
 
   KEYS.forEach(([name,pc])=>keySel.add(new Option(name,pc)));
   keySel.value='0';
+  S.playerKeyPc=0;
+  playerKeyBtn.textContent='Key: '+keyLabelForPc(0);
   keySel.addEventListener('change',()=>{
     exitSequencePreview();
     S.keyPc=Number(keySel.value);
@@ -2959,9 +5719,100 @@ body.player .playerOnly{display:grid}
 
   document.querySelectorAll('.noteTool').forEach(b=>bindTap(b,()=>setTool(b.dataset.tool)));
   document.querySelectorAll('.moveBtn').forEach(b=>bindTap(b,()=>armMove(b.dataset.move)));
-  bindTap(fingeringBtn,startFingeringAssignment);
-  document.querySelectorAll('[data-finger-choice]').forEach(b=>{
-    bindTap(b,()=>chooseAssignedFinger(b.dataset.fingerChoice));
+  bindTap(fingeringBtn,()=>{
+    if(S.fingeringAssign.active){
+      cancelFingeringAssignment(true);
+      statusEl.innerHTML=toolHelp();
+    }else{
+      startFingeringAssignment();
+    }
+  });
+  let chordPointerHandled=false;
+
+  /*
+    iOS/Safari can fail to deliver a tap to fingerLayer when the transformed
+    visual finger extends outside the layer's practical hit region. Resolve
+    chord-finger taps at the document level in capture phase instead.
+  */
+  document.addEventListener('pointerup',e=>{
+    if(!document.body.classList.contains('chordChoosingFinger')) return;
+
+    const finger=chordFingerFromTap(e.clientX,e.clientY);
+    if(finger<0) return;
+
+    // This is a NEW physical tap: the explicit finger-selection step.
+    suppressChordFingerSyntheticClick=false;
+    if(suppressChordFingerSyntheticClickTimer){
+      clearTimeout(suppressChordFingerSyntheticClickTimer);
+      suppressChordFingerSyntheticClickTimer=null;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+    if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation();
+
+    unlockAudioFromGesture();
+    chordPointerHandled=true;
+
+    // Immediate visual feedback that the visible finger was actually hit.
+    fingerRects.forEach((el,i)=>
+      el.classList.toggle('assignmentChosen',i===finger)
+    );
+
+    chooseAssignedFinger(FINGER_LETTERS[finger]);
+
+    setTimeout(()=>chordPointerHandled=false,250);
+  },{capture:true,passive:false});
+
+  /*
+    Fallback for browsers/environments that synthesize click without a usable
+    pointerup. Only consume the click when it actually lands near a finger.
+  */
+  document.addEventListener('click',e=>{
+    if(!document.body.classList.contains('chordChoosingFinger')) return;
+
+    // A chord-note pointerup may have switched us into this mode just before
+    // Safari emits its synthetic click. That click belongs to STEP 1 and may
+    // not also perform STEP 2.
+    if(suppressChordFingerSyntheticClick){
+      suppressChordFingerSyntheticClick=false;
+      if(suppressChordFingerSyntheticClickTimer){
+        clearTimeout(suppressChordFingerSyntheticClickTimer);
+        suppressChordFingerSyntheticClickTimer=null;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation();
+      return;
+    }
+
+    if(chordPointerHandled) return;
+
+    const finger=chordFingerFromTap(e.clientX,e.clientY);
+    if(finger<0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation();
+
+    unlockAudioFromGesture();
+    fingerRects.forEach((el,i)=>
+      el.classList.toggle('assignmentChosen',i===finger)
+    );
+    chooseAssignedFinger(FINGER_LETTERS[finger]);
+  },true);
+
+  fingerRects.forEach(el=>{
+    bindTap(el,()=>{
+      if(!S.fingeringAssign.active) return;
+
+      // Chord assignment is handled by the document-level geometric capture
+      // listener. Ordinary single-note fingering keeps its existing buttons.
+      if(document.body.classList.contains('chordChoosingFinger')) return;
+
+      chooseAssignedFinger(el.dataset.fingerChoice);
+    });
   });
 
   bindTap(document.getElementById('undoBtn'),undo);
@@ -2971,7 +5822,28 @@ body.player .playerOnly{display:grid}
   bindTap(document.getElementById('playBtn'),playAll);
   bindTap(document.getElementById('stopBtn'),()=>stopPlayback());
 
+  bindTap(playerKeyBtn,()=>{
+    playerKeyMenu.classList.toggle('on');
+  });
+  bindTap(createOpenBtn,createOpenStringVersion);
+  bindTap(approveClipBtn,approveClip);
+  bindTap(recallClipBtn,recallApprovedClip);
+
+  bindTap(clipDialogCancel,hideClipDialog);
+  bindTap(clipDialogPrimary,()=>{
+    const action=clipDialogPrimary._clipAction;
+    if(typeof action==='function') action();
+  });
+
+  bindTap(fingeringConfirmEdit,keepEditingConfirmedChord);
+  bindTap(fingeringConfirmContinue,()=>{
+    continueAfterConfirmedChord();
+  });
+
+  buildPlayerKeyMenu();
+
   drawBoard();
+  updateChordButton();
   drawFingerPose(S.fingerPose,true);
   renderEventList();
   statusEl.innerHTML=toolHelp();
