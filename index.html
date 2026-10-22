@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Solo Lesson Builder 0.68 — Score Focus Mode</title>
+<title>Solo Lesson Builder 0.70 — Universal Note Audition</title>
 <style>
 :root{
   /* Exact Guit-Map geometry */
@@ -2236,21 +2236,74 @@ body.scoreFocus .app{
     if(callback) callback(ctx);
   }
 
+  function guitarSampleCandidateUrls(def){
+    const urls=[];
+
+    function add(url){
+      if(!url) return;
+      try{
+        const absolute=new URL(url,document.baseURI).href;
+        if(!urls.includes(absolute)) urls.push(absolute);
+      }catch(_){}
+    }
+
+    // 1. Existing behavior: relative to the HTML file.
+    add(def.local);
+
+    // 2. GitHub Pages project sites:
+    //    https://USER.github.io/Circle/some-folder/file.html
+    //    should still find /Circle/samples/guitar/... at repository root.
+    try{
+      const host=(location.hostname || '').toLowerCase();
+      const parts=(location.pathname || '').split('/').filter(Boolean);
+
+      if(host.endsWith('.github.io') && parts.length){
+        const repo=parts[0];
+        if(repo && !repo.includes('.')){
+          add(`${location.origin}/${repo}/${def.local}`);
+        }
+      }
+
+      // 3. Custom-domain Pages sites and root-hosted copies.
+      if(location.origin && /^https?:/i.test(location.origin)){
+        add(`${location.origin}/${def.local}`);
+      }
+    }catch(_){}
+
+    // 4. Existing public sample fallback.
+    add(def.remote);
+
+    return urls;
+  }
+
   function fetchAndDecodeGuitarSample(ctx,urls){
     const list=Array.isArray(urls)?urls.slice():[urls];
 
+    const failures=[];
+
     function tryNext(index){
-      if(index>=list.length) return Promise.reject(new Error("No guitar sample source available"));
+      if(index>=list.length){
+        const detail=failures.length ? failures.join(' | ') : 'no candidate URLs';
+        return Promise.reject(new Error("No guitar sample source available: "+detail));
+      }
+
       const url=list[index];
       if(!url) return tryNext(index+1);
 
-      return fetch(url,{cache:"force-cache"})
+      return fetch(url,{
+        cache:"default",
+        credentials:"omit",
+        mode:"cors"
+      })
         .then(r=>{
           if(!r.ok) throw new Error(url+" HTTP "+r.status);
           return r.arrayBuffer();
         })
         .then(ab=>ctx.decodeAudioData(ab.slice(0)))
-        .catch(()=>tryNext(index+1));
+        .catch(err=>{
+          failures.push(err && err.message ? err.message : String(err));
+          return tryNext(index+1);
+        });
     }
 
     return tryNext(0);
@@ -2261,7 +2314,7 @@ body.scoreFocus .app{
     if(guitarSamplesPromise) return guitarSamplesPromise;
 
     guitarSamplesPromise=Promise.all(GUITAR_SAMPLE_DEFS.map(def=>{
-      return fetchAndDecodeGuitarSample(ctx,[def.local,def.remote])
+      return fetchAndDecodeGuitarSample(ctx,guitarSampleCandidateUrls(def))
         .then(buf=>{
           guitarSampleBuffers.set(def.midi,buf);
           return true;
@@ -2297,7 +2350,13 @@ body.scoreFocus .app{
     if(ctx.state!=="running"){
       try{
         const p=ctx.resume();
-        if(p && typeof p.catch==="function") p.catch(()=>{});
+        if(p && typeof p.then==="function"){
+          p.then(()=>{
+            if(ctx.state==="running"){
+              playSampledMidi(midi,volume,duration);
+            }
+          }).catch(()=>{});
+        }
       }catch(_){}
       return false;
     }
@@ -2865,29 +2924,155 @@ body.scoreFocus .app{
   }
 
   async function unlockSampleAudio(){
-    const ctx=getAudioCtx();
+    // Audio permission and sample availability are deliberately independent.
+    // On iOS/GitHub Pages a network fetch may finish after the original user
+    // gesture. Waiting for WAV loading here can therefore make every path
+    // silent even though Web Audio itself is already available.
+    const ctx=unlockAudioFromGesture() || getAudioCtx();
     if(!ctx) return false;
 
+    // Samples are an enhancement, never a prerequisite for sound.
+    try{ loadGuitarSamples(ctx).catch(()=>{}); }catch(_){}
+
     try{
-      if(ctx.state==="suspended") await ctx.resume();
-      const loaded=await loadGuitarSamples(ctx);
       if(ctx.state==="suspended"){
-        try{await ctx.resume()}catch(_){}
+        await ctx.resume();
       }
-      S.audioUnlocked=!!loaded && ctx.state==="running";
-      return S.audioUnlocked;
     }catch(err){
-      console.warn("Sampled guitar unavailable:",err);
-      S.audioUnlocked=false;
-      return false;
+      console.warn("AudioContext resume failed:",err);
     }
+
+    S.audioUnlocked=(ctx.state==="running");
+    return S.audioUnlocked;
   }
 
-  async function auditionDynamicNote(s,f,volume=.20){
-    const ctx=getAudioCtx();
+  function auditionDynamicNote(s,f,volume=.20){
+    const ctx=unlockAudioFromGesture() || getAudioCtx();
     if(!ctx) return;
-    const ok=await unlockSampleAudio();
-    if(ok) playStringSample(s,f,volume,.72);
+
+    // Keep loading real guitar samples in the background.
+    try{ loadGuitarSamples(ctx).catch(()=>{}); }catch(_){}
+
+    const play=()=>{
+      if(ctx.state==="running"){
+        playStringSample(s,f,volume,.72);
+      }
+    };
+
+    if(ctx.state==="running"){
+      play();
+      return;
+    }
+
+    try{
+      const resumed=ctx.resume();
+      if(resumed && typeof resumed.then==="function"){
+        resumed.then(play).catch(()=>{});
+      }
+    }catch(_){}
+  }
+
+  function auditionPositions(positions,{
+    volume=.20,
+    duration=.72
+  }={}){
+    const valid=(positions || []).filter(p=>
+      p &&
+      Number.isInteger(p.s) &&
+      Number.isFinite(p.f)
+    );
+    if(!valid.length) return false;
+
+    const ctx=unlockAudioFromGesture() || getAudioCtx();
+    if(!ctx) return false;
+
+    try{ loadGuitarSamples(ctx).catch(()=>{}); }catch(_){}
+
+    const play=()=>{
+      if(ctx.state!=="running") return false;
+
+      // Chords / multiple positions are deliberately triggered in the same
+      // JavaScript turn so they sound together.
+      for(const p of valid){
+        playStringSample(p.s,p.f,volume,duration);
+      }
+      return true;
+    };
+
+    if(ctx.state==="running"){
+      return play();
+    }
+
+    try{
+      const resumed=ctx.resume();
+      if(resumed && typeof resumed.then==="function"){
+        resumed.then(play).catch(()=>{});
+      }
+    }catch(_){}
+
+    return false;
+  }
+
+  function eventAuditionPositions(e){
+    if(!e || e.type===EVENT_TYPE.REST) return [];
+
+    if(isFrameworkEvent(e)){
+      return [{s:e.s,f:e.f}];
+    }
+
+    if(e.type===EVENT_TYPE.FINGER_ON || e.type===EVENT_TYPE.FINGER_OFF){
+      return [{s:e.s,f:e.f}];
+    }
+
+    if(e.type===EVENT_TYPE.CHORD){
+      return (e.notes || []).map(clonePos).filter(Boolean);
+    }
+
+    if(isMoveEvent(e)){
+      // A pre-bend stores the sounding phantom pitch in `from` and the
+      // physical lower fret in `to`/`bendHome`. Audition the sounding pitch.
+      if(isPreBendEvent(e)){
+        return e.from ? [clonePos(e.from)] : [];
+      }
+
+      // All other movements resolve to the destination pitch.
+      return e.to ? [clonePos(e.to)] : [];
+    }
+
+    return [];
+  }
+
+  function auditionEventPitch(e,options={}){
+    const positions=eventAuditionPositions(e);
+    if(!positions.length) return false;
+
+    const isChord=e && e.type===EVENT_TYPE.CHORD;
+    return auditionPositions(positions,{
+      volume:options.volume ?? (isChord ? .18 : .20),
+      duration:options.duration ?? (isChord ? .74 : .72)
+    });
+  }
+
+  function auditionFingeringTarget(target){
+    if(!target) return false;
+
+    const e=S.events[target.eventIndex];
+    if(!e) return false;
+
+    if(target.kind==='chord' && Number.isInteger(target.chordNoteIndex)){
+      const note=e.notes && e.notes[target.chordNoteIndex];
+      return note ? auditionPositions([note]) : false;
+    }
+
+    if(target.kind==='chord'){
+      return auditionEventPitch(e);
+    }
+
+    if(target.pos){
+      return auditionPositions([target.pos]);
+    }
+
+    return auditionEventPitch(e);
   }
 
   // Circle primes sample loading on the very first user gesture.
@@ -5037,6 +5222,7 @@ body.scoreFocus .app{
       selectedRow.scrollIntoView({block:'nearest'});
     }
 
+    auditionEventPitch(e);
     statusEl.innerHTML=authorEditHelp(e);
     updateChordButton();
   }
@@ -5109,6 +5295,7 @@ body.scoreFocus .app{
     }
 
     rebuildAuthor();
+    auditionPositions([{s,f}]);
     statusEl.innerHTML=authorEditHelp(e);
     return true;
   }
@@ -5124,12 +5311,14 @@ body.scoreFocus .app{
         pushAuthorSnapshot();
 
         const removedIndex=S.editEventIndex;
+        const removedPitch={s:e.s,f:e.f};
         S.events.splice(removedIndex,1);
         S.editEventIndex=null;
         S.editSelectionKind=null;
         S.previewEventIndex=null;
 
         rebuildAuthor();
+        auditionPositions([removedPitch]);
         statusEl.innerHTML=
           '<strong>Played note removed.</strong><br>'+
           'Select another Played Notes row to edit, or tap the fretboard to add a new note.';
@@ -5168,7 +5357,7 @@ body.scoreFocus .app{
       }
 
       rebuildAuthor();
-      auditionDynamicNote(s,f,.20);
+      auditionEventPitch(e);
       statusEl.innerHTML=authorEditHelp(e);
       return true;
     }
@@ -5190,6 +5379,7 @@ body.scoreFocus .app{
       }
 
       rebuildAuthor();
+      auditionEventPitch(e);
       statusEl.innerHTML=authorEditHelp(e);
       return true;
     }
@@ -5254,6 +5444,7 @@ body.scoreFocus .app{
 
     resetPendingAuthoringState();
     rebuildAuthor();
+    auditionEventPitch(e);
     statusEl.innerHTML=authorEditHelp(e);
     return true;
   }
@@ -5507,6 +5698,7 @@ body.scoreFocus .app{
     setTimeout(()=>shell.classList.remove('chordConfirmPulse'),450);
 
     const names=notes.map(n=>noteName(n.s,n.f)).join(' · ');
+    auditionEventPitch(chordEvent);
     announce(`Chord: ${names}`,true);
   }
 
@@ -5568,6 +5760,7 @@ body.scoreFocus .app{
         play:true
       });
       rebuildAuthor();
+      auditionPositions([{s,f}]);
       announce(`Framework ${S.author.framework.has(k)?'on':'off'}: ${noteName(s,f)}`,true);
       return;
     }
@@ -5684,6 +5877,7 @@ body.scoreFocus .app{
       pushAuthorSnapshot();
       S.events.push({type:'fingerOff',s,f,play:false});
       rebuildAuthor();
+      auditionPositions([{s,f}]);
       announce(`Finger off: ${noteName(s,f)}. Sequence connection reset.`,false);
       return;
     }
@@ -6504,6 +6698,7 @@ body.scoreFocus .app{
     renderEventList();
     prepareFingeringTargetPose(currentFingeringTarget());
     showFingeringTarget(false);
+    auditionFingeringTarget(currentFingeringTarget());
     return true;
   }
 
@@ -6680,11 +6875,13 @@ body.scoreFocus .app{
     const note=e.notes[noteIndex];
 
     if(note.f===0){
+      auditionPositions([note]);
       statusEl.innerHTML='<strong>Open string</strong><br>This is a phantom position and does not need a finger.';
       return true;
     }
 
     S.fingeringAssign.selectedChordNoteIndex=noteIndex;
+    auditionPositions([note]);
     S.fingeringAssign.completedChordReviewEventIndex=null;
     S.fingeringAssign.confirmingChordEventIndex=null;
 
@@ -7067,6 +7264,7 @@ body.scoreFocus .app{
     }
 
     showFingeringTarget(false);
+    auditionFingeringTarget(currentFingeringTarget());
 
     if(firstIncomplete<0){
       statusEl.innerHTML=
@@ -7982,6 +8180,7 @@ body.scoreFocus .app{
 
     renderEventList();
     renderScore();
+    auditionEventPitch(e);
 
     statusEl.innerHTML=
       `<strong>${e.type===EVENT_TYPE.REST?'Rest':'Played Note'} selected</strong><br>`+
@@ -8008,6 +8207,7 @@ body.scoreFocus .app{
 
     rebuildAuthor();
     renderScore();
+    auditionEventPitch(e);
 
     statusEl.innerHTML=
       `<strong>${durationMeta(e.durationUnits).name}</strong><br>`+
@@ -8276,6 +8476,10 @@ body.scoreFocus .app{
 
       S.pendingMove=kind;
       S.pendingPreBend=null;
+
+      if(S.author.currentOrigin){
+        auditionPositions([S.author.currentOrigin]);
+      }
 
       if(kind==='bend'){
         const ref=currentOriginSourceRef();
@@ -8597,7 +8801,12 @@ body.scoreFocus .app{
     renderPlayback();
 
     if(e.type==='fingerOn'){
-      playStringSample(e.s,e.f,.20,.72);
+      playStringSample(
+        e.s,
+        e.f,
+        .20,
+        Math.max(.18,eventDurationMs(e)/1000*.92)
+      );
     }
 
     await sleep(eventDurationMs(e));
@@ -8650,6 +8859,13 @@ body.scoreFocus .app{
 
       if(!isTimedEvent(e)){
         applyEventInstant(S.playback,e);
+
+        if(
+          timedIndex>0 &&
+          (e.type===EVENT_TYPE.FRAMEWORK_ON || e.type===EVENT_TYPE.FRAMEWORK_OFF)
+        ){
+          auditionEventPitch(e,{volume:.16,duration:.45});
+        }
 
         if(S.useAssignedFingering){
           if(e.type==='frameworkOn' || e.type==='frameworkOff'){
