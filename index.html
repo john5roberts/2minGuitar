@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Solo Lesson Builder 0.70 — Universal Note Audition</title>
+<title>Solo Lesson Builder 0.73 — Dynamic Sequence Frame</title>
 <style>
 :root{
   /* Exact Guit-Map geometry */
@@ -1636,6 +1636,43 @@ body.scoreFocus .app{
   padding-right:10px;
 }
 
+
+/* === 0.72 compact movement layout === */
+#movementSection[hidden],
+#movementSeparator[hidden]{
+  display:none!important;
+}
+
+.movementStack{
+  width:92px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+}
+
+.movementStack .moveBtn,
+.movementStack .scoreToggleBtn{
+  width:100%;
+  min-width:0;
+  height:34px;
+  padding:0 4px;
+  text-align:center;
+  font-size:9px;
+}
+
+.movementStack .moveWide{
+  grid-column:1 / -1;
+  font-size:10px;
+}
+
+
+/* === 0.73 dynamic sequence frame === */
+.sequenceWrap{
+  flex:0 0 auto;
+  min-height:72px;
+  max-height:none;
+}
+
 </style>
 </head>
 <body>
@@ -1667,9 +1704,9 @@ body.scoreFocus .app{
       <div id="movementSection" class="sidebarSection adminOnly" hidden>
         <div class="sectionLabel">Movement</div>
         <div class="movementStack">
+          <button class="moveBtn moveWide" data-move="hammer-on">Hammer-on</button>
+          <button class="moveBtn moveWide" data-move="pull-off">Pull-off</button>
           <button class="moveBtn" data-move="bend">Bend</button>
-          <button class="moveBtn" data-move="hammer-on">Hammer-on</button>
-          <button class="moveBtn" data-move="pull-off">Pull-off</button>
           <button class="moveBtn" data-move="slide">Slide</button>
           <button id="chordBtn" class="moveBtn" data-move="chord" disabled>Chord</button>
           <button id="scoreToggleBtn" class="scoreToggleBtn" type="button">Score</button>
@@ -1968,6 +2005,9 @@ body.scoreFocus .app{
   const playerLabelBtn=document.getElementById('playerLabelBtn');
   const statusEl=document.getElementById('status');
   const eventPanel=document.getElementById('eventPanel');
+  const sequenceWrap=document.querySelector('.sequenceWrap');
+  const fretboardWrap=document.querySelector('.maincol .wrap');
+  const leftcol=document.querySelector('.leftcol');
   const progressFill=document.getElementById('progressFill');
   const fingerRects=[0,1,2,3].map(i=>document.getElementById('fingerRect'+i));
   const authorModeBtn=document.getElementById('authorModeBtn');
@@ -2399,6 +2439,45 @@ body.scoreFocus .app{
 
   function playStringSample(s,f,volume=.20,duration=.72){
     return playSampledMidi(midiAt(s,f),volume,duration);
+  }
+
+  function playUiClick(){
+    const ctx=unlockAudioFromGesture() || getAudioCtx();
+    if(!ctx) return false;
+
+    const play=()=>{
+      if(ctx.state!=="running") return false;
+
+      const now=ctx.currentTime;
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+
+      osc.type='square';
+      osc.frequency.setValueAtTime(1500,now);
+      osc.frequency.exponentialRampToValueAtTime(850,now+.035);
+
+      gain.gain.setValueAtTime(.0001,now);
+      gain.gain.exponentialRampToValueAtTime(.055,now+.002);
+      gain.gain.exponentialRampToValueAtTime(.0001,now+.042);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now+.05);
+      return true;
+    };
+
+    if(ctx.state==="running") return play();
+
+    try{
+      const p=ctx.resume();
+      if(p && typeof p.then==="function"){
+        p.then(play).catch(()=>{});
+      }
+    }catch(_){}
+
+    return false;
   }
 
   function silenceActiveGuitarSources(fade=.025){
@@ -5311,14 +5390,13 @@ body.scoreFocus .app{
         pushAuthorSnapshot();
 
         const removedIndex=S.editEventIndex;
-        const removedPitch={s:e.s,f:e.f};
         S.events.splice(removedIndex,1);
         S.editEventIndex=null;
         S.editSelectionKind=null;
         S.previewEventIndex=null;
 
         rebuildAuthor();
-        auditionPositions([removedPitch]);
+        playUiClick();
         statusEl.innerHTML=
           '<strong>Played note removed.</strong><br>'+
           'Select another Played Notes row to edit, or tap the fretboard to add a new note.';
@@ -5877,7 +5955,7 @@ body.scoreFocus .app{
       pushAuthorSnapshot();
       S.events.push({type:'fingerOff',s,f,play:false});
       rebuildAuthor();
-      auditionPositions([{s,f}]);
+      playUiClick();
       announce(`Finger off: ${noteName(s,f)}. Sequence connection reset.`,false);
       return;
     }
@@ -7969,6 +8047,8 @@ body.scoreFocus .app{
         renderScoreFretboardPositions();
       });
     }
+
+    scheduleSequenceFrameSync();
   }
 
   function toggleScoreTiming(){
@@ -8312,6 +8392,47 @@ body.scoreFocus .app{
     return S.tool==='framework' ? 'framework' : 'played';
   }
 
+  let sequenceFrameSyncRaf=0;
+
+  function syncSequenceFrameHeight(){
+    sequenceFrameSyncRaf=0;
+
+    if(
+      !sequenceWrap ||
+      !fretboardWrap ||
+      document.body.classList.contains('player') ||
+      document.body.classList.contains('scoreFocus')
+    ){
+      if(sequenceWrap) sequenceWrap.style.height='';
+      return;
+    }
+
+    // The sequence panel's TOP depends on the current authoring mode because
+    // Played Notes has the Movement block while Framework/Fingering do not.
+    // Its BOTTOM is always locked to the outer fretboard frame.
+    const sequenceRect=sequenceWrap.getBoundingClientRect();
+    const fretboardRect=fretboardWrap.getBoundingClientRect();
+
+    const height=Math.max(
+      72,
+      Math.round(fretboardRect.bottom-sequenceRect.top)
+    );
+
+    sequenceWrap.style.height=`${height}px`;
+  }
+
+  function scheduleSequenceFrameSync(){
+    if(sequenceFrameSyncRaf){
+      cancelAnimationFrame(sequenceFrameSyncRaf);
+    }
+
+    sequenceFrameSyncRaf=requestAnimationFrame(()=>{
+      // One additional frame allows hidden/shown mode controls to finish
+      // changing the sequence panel's top position before it is measured.
+      sequenceFrameSyncRaf=requestAnimationFrame(syncSequenceFrameHeight);
+    });
+  }
+
   function updateAuthorModeUI(){
     const mode=currentAuthorMode();
 
@@ -8332,11 +8453,15 @@ body.scoreFocus .app{
       authorModeBtn.classList.add('mode-fingering');
     }
 
-    const showMovement=mode==='played';
+    const showMovement=(
+      mode==='played' &&
+      !document.body.classList.contains('player')
+    );
     movementSection.hidden=!showMovement;
     movementSeparator.hidden=!showMovement;
 
     updateScoreUI();
+    scheduleSequenceFrameSync();
   }
 
   async function cycleAuthorMode(){
@@ -8476,10 +8601,6 @@ body.scoreFocus .app{
 
       S.pendingMove=kind;
       S.pendingPreBend=null;
-
-      if(S.author.currentOrigin){
-        auditionPositions([S.author.currentOrigin]);
-      }
 
       if(kind==='bend'){
         const ref=currentOriginSourceRef();
@@ -9150,6 +9271,8 @@ body.scoreFocus .app{
     statusEl.innerHTML=S.clipDraft.editingVariant==='open'
       ? '<strong>Open-string version</strong><br>Edit the authored open-position variant.'
       : toolHelp();
+
+    scheduleSequenceFrameSync();
   }
 
   function enterPlayer(){
@@ -9169,6 +9292,7 @@ body.scoreFocus .app{
 
     stopPlayback();
     document.body.classList.add('player');
+    if(sequenceWrap) sequenceWrap.style.height='';
     document.getElementById('playerTab').classList.add('on');
     document.getElementById('adminTab').classList.remove('on');
 
@@ -9211,7 +9335,15 @@ body.scoreFocus .app{
 
   window.addEventListener('resize',()=>{
     if(S.scoreVisible) requestAnimationFrame(applyScorePopupOffset);
+    scheduleSequenceFrameSync();
   });
+
+  if(typeof ResizeObserver!=='undefined' && fretboardWrap){
+    const sequenceFrameObserver=new ResizeObserver(()=>{
+      scheduleSequenceFrameSync();
+    });
+    sequenceFrameObserver.observe(fretboardWrap);
+  }
 
   scoreSection.addEventListener('pointerup',e=>{
     if(e.target===scoreSection) closeScorePopup();
@@ -9346,6 +9478,7 @@ body.scoreFocus .app{
   updateAuthorModeUI();
   updateScoreUI();
   updateLabelButtons();
+  scheduleSequenceFrameSync();
   updateChordButton();
   drawFingerPose(S.fingerPose,true);
   renderEventList();
