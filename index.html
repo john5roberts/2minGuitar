@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Solo Lesson Builder 0.73 — Dynamic Sequence Frame</title>
+<title>Solo Lesson Builder 0.74 — Edit Under Mode</title>
 <style>
 :root{
   /* Exact Guit-Map geometry */
@@ -1699,6 +1699,16 @@ body.scoreFocus .app{
         <button id="authorModeBtn" class="authorModeBtn mode-framework" type="button">Framework</button>
       </div>
 
+      <div class="sidebarSeparator adminOnly"></div>
+
+      <div class="sidebarSection adminOnly">
+        <div class="sectionLabel">Edit</div>
+        <div class="actionrow">
+          <button id="undoBtn" class="action">Undo</button>
+          <button id="clearBtn" class="action">Clear</button>
+        </div>
+      </div>
+
       <div id="movementSeparator" class="sidebarSeparator adminOnly" hidden></div>
 
       <div id="movementSection" class="sidebarSection adminOnly" hidden>
@@ -1713,17 +1723,7 @@ body.scoreFocus .app{
         </div>
       </div>
 
-      <div class="sidebarSeparator adminOnly"></div>
-
       <div id="status" hidden></div>
-
-      <div class="sidebarSection adminOnly">
-        <div class="sectionLabel">Edit</div>
-        <div class="actionrow">
-          <button id="undoBtn" class="action">Undo</button>
-          <button id="clearBtn" class="action">Clear</button>
-        </div>
-      </div>
 
       <div class="sequenceWrap adminOnly">
         <div class="sequenceTitle">Sequence</div>
